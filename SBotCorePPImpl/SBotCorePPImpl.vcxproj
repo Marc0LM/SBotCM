@@ -54,7 +54,7 @@
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>D:\dev\protobuf\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <OutDir>$(Platform)\$(Configuration)\</OutDir>
-    <TargetName>data</TargetName>
+    <TargetName>version</TargetName>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg">
     <VcpkgEnabled>false</VcpkgEnabled>
@@ -79,7 +79,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>D:\dev\protobuf\lib\libprotobuf-lited.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>D:\dev\protobuf\lib\libprotobuf-lite.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copydlld.bat</Command>
@@ -99,7 +99,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <OpenMPSupport>true</OpenMPSupport>
       <TreatWarningAsError>false</TreatWarningAsError>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
@@ -117,10 +117,12 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\protobuf\UITreeNodePB2211.pb.cc" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="UITreeNodePB.pb.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\protobuf\UITreeNodePB2211.pb.h" />
     <ClInclude Include="conversions.h" />
     <ClInclude Include="EveUITreeReader.h" />
     <ClInclude Include="IMemoryReader.h" />

@@ -23,6 +23,7 @@
 #include "MemoryReadingCache.h"
 #include "UITreeNode.h"
 #include "UITreeNodePB.pb.h"
+#include "UITreeNodePB2211.pb.h"
 #include "conversions.h"
 #include "types.h"
 
@@ -51,7 +52,7 @@ class EveUITreeReader {
         "_selected",
 
         ////  Found in "ShipHudSpriteGauge"
-        "_lastValue",
+        "_lastValue", "lastSetCapacitor",
 
         //  Found in "ModuleButton"
         "quantity", "isDeactivating", "ramp_active",
@@ -70,18 +71,11 @@ class EveUITreeReader {
         //"htmlstr"
     };
   }
-  int CalcTreeSize(UITreeNode node, int depth) {
-    if (depth > 16) return 0;
-    int s = 0;
-    for (auto c : node.children_) {
-      s += CalcTreeSize(*c, depth++);
-    }
-    return s + node.children_.size();
-  }
 
  public:
   int maxSegSize = 100;
-  Address GetRootAddress() {
+  bool readAll = false;
+  Address FindRootAddress() {
     // throw 9;
     auto memory_regions = ReadCommittedMemoryRegionsFromProcess(process_ID_);
     auto ui_root_candidates_addresses = EnumeratePossibleAddressesForUIRootObjects(memory_regions);
@@ -117,6 +111,8 @@ class EveUITreeReader {
     cache_ = MemoryReadingCache();
     return ReadUITreeFromAddressR(nodeAddress, maxDepth);
   }
+
+  // Decrepated
   std::set<uint64_t> chi;
   UITreeNodeFixed* ReadUITreeFromAddressFixed(Address nodeAddress, int maxDepth) {
     cache_ = MemoryReadingCache();
@@ -134,6 +130,7 @@ class EveUITreeReader {
  private:
   uint64_t process_ID_;
   std::set<std::string> dict_entries_of_interest_keys_;
+  std::set<std::string> otherDictEntriesKeys;
   std::map<std::string, std::function<std::any(Address)>> specialized_reading_from_python_type_;
   MemoryReadingCache cache_;
 
@@ -165,9 +162,9 @@ class EveUITreeReader {
     return (int32_t)Convert::ToInt64(int_object_memory->Raw(), 0x10);
   }
 
-  int64_t specialized_reading_from_python_type_bool(Address address) {
+  bool specialized_reading_from_python_type_bool(Address address) {
     auto data = memory_reader_->ReadBytes(address, 0x18);
-    if (!data) return 0;
+    if (!data) return false;
     return Convert::ToInt64(data->Raw(), 0x10);
   }
 
@@ -186,7 +183,7 @@ class EveUITreeReader {
     }
     return entriesOfInterest;
   }
-  // about reading UITree
+
   std::shared_ptr<UITreeNode> ReadUITreeFromAddressR(Address nodeAddress, int maxDepth) {
     auto uiNodeObjectMemory = memory_reader_->ReadBytes(nodeAddress, 0x30);
     if (!uiNodeObjectMemory) return nullptr;
@@ -206,8 +203,8 @@ class EveUITreeReader {
 
       auto keyString = ReadPythonStringValueMaxLength4000(dictionaryEntry.key);
 
-      if (dict_entries_of_interest_keys_.find(keyString) == dict_entries_of_interest_keys_.end()) {
-        // otherDictEntriesKeys.Add(keyString);
+      if (!readAll && dict_entries_of_interest_keys_.find(keyString) == dict_entries_of_interest_keys_.end()) {
+        otherDictEntriesKeys.insert(keyString);
         continue;
       }
       auto t = GetDictEntryValueRepresentation(dictionaryEntry.value);
@@ -290,6 +287,359 @@ class EveUITreeReader {
     return std::make_shared<UITreeNode>(UITreeNode{nodeAddress, python_object_type_name_, dictEntriesOfInterest, ReadChildren()});
   }
 
+  std::string ReadPythonStringValue(Address address, Size maxlength) {
+    //  https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Include/stringobject.h
+
+    auto stringObjectMemory = memory_reader_->ReadBytes(address, 0x20);
+
+    if (!stringObjectMemory) return "";
+
+    auto stringObject_ob_size = Convert::ToUInt64(stringObjectMemory->Raw(), 0x10);
+
+    if (0 < maxlength && maxlength < stringObject_ob_size) return "";
+
+    auto stringBytes = memory_reader_->ReadBytes(address + 8 * 4, stringObject_ob_size);
+
+    if (!stringBytes) return "";
+    std::string res;
+    int idx = 0;
+    for (int i = 0; i < stringBytes->Count(); i++) {
+      if (++idx > stringObject_ob_size) break;
+      res.push_back((*stringBytes)[i]);
+    }
+    return res;
+  }
+  double ReadPythonFloatObjectValue(Address address) {
+    //  https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Include/floatobject.h
+
+    auto pythonObjectMemory = memory_reader_->ReadBytes(address, 0x20);
+
+    if (!pythonObjectMemory) return 0;
+
+    return Convert::ToDouble(pythonObjectMemory->Raw(), 0x10);
+  }
+  std::string ReadPythonStringValueMaxLength4000(Address strObjectAddress) {
+    return cache_.GetPythonStringValueMaxLength4000(
+        strObjectAddress, [&](Address strObjectAddress) -> std::string { return ReadPythonStringValue(strObjectAddress, 4000); });
+  }
+
+  std::shared_ptr<std::vector<PyDictEntry>> ReadActiveDictionaryEntriesFromDictionaryAddress(Address dictionaryAddress) {
+    auto default_res = std::make_shared<std::vector<PyDictEntry>>(std::vector<PyDictEntry>());
+    /*
+    Sources:
+    https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Include/dictobject.h
+    https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Objects/dictobject.c
+    */
+
+    auto data = memory_reader_->ReadBytes(dictionaryAddress, 0x30);
+    if (!data) return default_res;
+    std::vector<int64_t> dict_memory_as_long_array;
+    dict_memory_as_long_array = Convert::AsInt64Array(data);
+
+    //  https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Include/dictobject.h#L60-L89
+
+    auto ma_fill = dict_memory_as_long_array[2];
+    auto ma_used = dict_memory_as_long_array[3];
+    auto ma_mask = dict_memory_as_long_array[4];
+    auto ma_table = dict_memory_as_long_array[5];
+
+    //  Console.WriteLine($"Details for dictionary 0x{dictionaryAddress:X}:
+    //  type_name = '{dictTypeName}' ma_mask = 0x{ma_mask:X}, ma_table =
+    //  0x{ma_table:X}.");
+
+    auto numberOfSlots = ma_mask + 1;
+
+    if (numberOfSlots < 0 || 10000 < numberOfSlots) {
+      //  Avoid stalling the whole reading process when a single dictionary
+      //  contains garbage.
+      return default_res;
+    }
+
+    auto slotsMemorySize = numberOfSlots * 8 * 3;
+    data = memory_reader_->ReadBytes(ma_table, slotsMemorySize);
+    if (!data) return std::make_shared<std::vector<PyDictEntry>>(std::vector<PyDictEntry>());
+
+    auto slots_memory_as_long_array = Convert::AsUInt64Array(data);
+    auto entries = std::make_shared<std::vector<PyDictEntry>>(std::vector<PyDictEntry>());
+
+    for (auto slotIndex = 0; slotIndex < numberOfSlots; ++slotIndex) {
+      auto hash = slots_memory_as_long_array[slotIndex * 3];
+      auto key = slots_memory_as_long_array[slotIndex * 3 + 1];
+      auto value = slots_memory_as_long_array[slotIndex * 3 + 2];
+
+      if (key == 0 || value == 0) continue;
+
+      entries->push_back(PyDictEntry{hash, key, value});
+    }
+
+    return entries;
+  }
+  std::shared_ptr<std::map<std::string, uint64_t>> GetDictionaryEntriesWithStringKeys(uint64_t dictionary_object_address) {
+    auto default_res = std::make_shared<std::map<std::string, uint64_t>>(std::map<std::string, uint64_t>());
+    auto dictionaryEntries = ReadActiveDictionaryEntriesFromDictionaryAddress(dictionary_object_address);
+    if (!dictionaryEntries) return default_res;
+    auto res = std::map<std::string, uint64_t>();
+    for (auto& de : *dictionaryEntries) {
+      res[ReadPythonStringValueMaxLength4000(de.key)] = de.value;
+    }
+    return std::make_shared<std::map<std::string, uint64_t>>(res);
+  }
+
+  std::string GetPythonTypeNameFromPythonTypeObjectAddress(Address typeObjectAddress) {
+    auto typeObjectMemory = memory_reader_->ReadBytes(typeObjectAddress, 0x20);
+    if (!typeObjectMemory) return "";
+    auto tp_name = Convert::ToUInt64(typeObjectMemory->Raw(), 0x18);
+    auto nameBytes = memory_reader_->ReadBytes(tp_name, 30);
+    if (!nameBytes) return "";
+    return Convert::AsASCIIString(nameBytes);
+  }
+
+  std::string GetPythonTypeNameFromPythonObjectAddress(Address objectAddress) {
+    return cache_.GetPythonTypeNameFromPythonObjectAddress(objectAddress, [&](Address objectAddress) -> std::string {
+      auto objectMemory = memory_reader_->ReadBytes(objectAddress, 0x10);
+      if (!objectMemory) return "";
+      return GetPythonTypeNameFromPythonTypeObjectAddress(Convert::ToUInt64(objectMemory->Raw(), 8));
+    });
+  }
+
+  std::any GetDictEntryValueRepresentation(Address valueOjectAddress) {
+    return cache_.GetDictEntryValueRepresentation(valueOjectAddress, [&](Address valueOjectAddress) -> std::any {
+      auto genericRepresentation = UITreeNode::DictEntryValueGenericRepresentation{valueOjectAddress, ""};
+
+      auto value_pythonTypeName = cache_.GetPythonTypeNameFromPythonObjectAddress(valueOjectAddress, [&](Address address) -> std::string {
+        auto objectMemory = memory_reader_->ReadBytes(address, 0x10);
+
+        if (!objectMemory) return "";
+        return GetPythonTypeNameFromPythonTypeObjectAddress(Convert::ToUInt64(objectMemory->Raw(), 8));
+      });
+
+      genericRepresentation.python_object_type_name = value_pythonTypeName;
+
+      if (value_pythonTypeName.empty()) return genericRepresentation;
+
+      auto specializedRepresentation = specialized_reading_from_python_type_.find(value_pythonTypeName);
+      if (value_pythonTypeName == "int") return specialized_reading_from_python_type_int(valueOjectAddress);
+      if (value_pythonTypeName == "bool") return specialized_reading_from_python_type_bool(valueOjectAddress);
+      if (value_pythonTypeName == "float") return specialized_reading_from_python_type_float(valueOjectAddress);
+      if (value_pythonTypeName == "unicode") return specialized_reading_from_python_type_unicode(valueOjectAddress);
+      if (value_pythonTypeName == "Bunch") return specialized_reading_from_python_type_Bunch(valueOjectAddress);
+      if (value_pythonTypeName == "str") return specialized_reading_from_python_type_str(valueOjectAddress);
+      if (specializedRepresentation == specialized_reading_from_python_type_.end()) return genericRepresentation;
+      return specializedRepresentation->second(genericRepresentation.address);
+    });
+  }
+
+  // about finding root address
+  std::map<Address, Size> ReadCommittedMemoryRegionsFromProcess(uint64_t processId) {
+    MemoryReaderFromProcess mr(processId);
+
+    Address address = 0;
+
+    auto committed_regions = std::map<Address, Size>();
+
+    do {
+      MEMORY_BASIC_INFORMATION m;
+      auto _ = VirtualQueryEx(mr.handle_, (LPCVOID*)address, &m, sizeof(MEMORY_BASIC_INFORMATION64));
+
+      auto region_protection = m.Protect;
+
+      if (address == (Address)m.BaseAddress + (Size)m.RegionSize) break;
+
+      address = (Address)m.BaseAddress + (Size)m.RegionSize;
+
+      if (m.State != MEM_COMMIT) continue;
+
+      auto protection_flags_to_skip = PAGE_GUARD | PAGE_NOACCESS;
+      auto matching_flags_to_skip = protection_flags_to_skip & region_protection;
+
+      if (matching_flags_to_skip != 0) {
+        continue;
+      }
+
+      committed_regions[(Address)m.BaseAddress] = m.RegionSize;
+
+    } while (true);
+    memory_regions_ = committed_regions;
+    return committed_regions;
+  }
+
+  std::vector<Address> EnumeratePossibleAddressesForUIRootObjects(const std::map<Address, Size>& mmrgs) {
+    std::vector<std::pair<Address, Size>> mrgs;
+    for (auto& mrg : mmrgs) {
+      auto max_segment_size = 1024 * maxSegSize;
+      if (mrg.second > max_segment_size) {
+        auto start = mrg.first;
+        auto bytes_left = mrg.second;
+        while (bytes_left > max_segment_size) {
+          mrgs.push_back(std::make_pair(start, max_segment_size));
+          start += max_segment_size;
+          start -= 8;
+          bytes_left -= max_segment_size;
+          bytes_left += 8;
+        }
+        if (bytes_left > 0) {
+          mrgs.push_back(std::make_pair(start, bytes_left));
+        }
+      } else {
+        mrgs.push_back(mrg);
+      }
+    }
+    auto ReadNullTerminatedAsciiStringFromAddressUpTo255 = [&](Address address, int size = 0x100) {
+      auto bytes_before_truncate = memory_reader_->ReadBytes(address, size);
+      if (!bytes_before_truncate) return (std::string) "";
+
+      return Convert::AsASCIIString(bytes_before_truncate);
+    };
+    auto ReadMemoryRegionContentAsULongArray = [&](const std::pair<Address, Size>& mrg) {
+      auto length = mrg.second;
+      auto data = memory_reader_->ReadBytes(mrg.first, length);
+      if (!data) return std::vector<uint64_t>();
+
+      return Convert::AsUInt64Array(data);
+    };
+
+    auto test = [&]() {
+      // auto aa = 0x26d8c8177d0;
+      // auto ss = ReadNullTerminatedAsciiStringFromAddressUpTo255(aa, 7);
+      std::vector<Address> res;
+      size_t step = 0;
+      // std::ofstream logger("test.txt");
+      // logger << mrgs.size() << std::endl;
+      std::atomic<int> c = 0;
+#pragma omp parallel for
+      for (int i = 0; i < mrgs.size(); i++) {
+        auto& mrg = mrgs[i];
+        std::vector<Address> mr_content_as_uint64_t = ReadMemoryRegionContentAsULongArray(mrg);
+        for (auto o = 0; o < mr_content_as_uint64_t.size(); o++) {
+          // auto toab = memory_reader_->ReadBytes(mr_content_as_uint64_t[o], 8);
+          // if (toab) {
+          // auto toa = Convert::ToInt64(toab->Raw(), 0);
+          auto toa = mr_content_as_uint64_t[o];
+          auto tonab = memory_reader_->ReadBytes(toa + 24, 8);
+          if (tonab) {
+            auto tona = Convert::ToInt64(tonab->Raw(), 0);
+            // auto toa = tob;
+            const auto& ton = ReadNullTerminatedAsciiStringFromAddressUpTo255(tona, 7);
+            if (ton == "UIRoot") {
+#pragma omp critical
+              res.push_back(mrg.first + o * 8 - 8);
+#pragma omp critical
+              std::cout << mrg.first + o * 8 - 8 << std::endl;
+            }
+          }
+          //}
+        }
+        c++;
+#pragma omp critical
+        std::cout << c << std::endl;
+      }
+      // logger.flush();
+      return res;
+    };
+    // return test();
+
+    auto EnumerateCandidatesForPythonTypeObjectType = [&]() {
+      std::unordered_set<Address> res;
+      std::atomic<int> idx = 0;
+      std::mutex m;
+#pragma omp parallel for
+      for (int i = 0; i < mrgs.size(); i++) {
+        auto& mrg = mrgs[i];
+        std::vector<Address> mr_content_as_uint64_t = ReadMemoryRegionContentAsULongArray(mrg);
+
+        if (mr_content_as_uint64_t.size() > 0) {
+          for (auto candidate_address_index = 0; candidate_address_index + 4 < mr_content_as_uint64_t.size(); ++candidate_address_index) {
+            auto candidate_address_in_process = mrg.first + candidate_address_index * 8;
+
+            auto candidate_ob_type = mr_content_as_uint64_t[candidate_address_index + 1];
+
+            if (candidate_ob_type != candidate_address_in_process) continue;
+
+            const auto& candidate_tp_name = ReadNullTerminatedAsciiStringFromAddressUpTo255(mr_content_as_uint64_t[candidate_address_index + 3]);
+            if (candidate_tp_name != "type") continue;
+            m.lock();
+            res.insert(candidate_address_in_process);
+            m.unlock();
+          }
+        }
+      }
+      return res;
+    };
+    auto EnumerateCandidatesForPythonTypeObjects = [&](const std::unordered_set<Address>& type_object_candidates_addresses) {
+      std::map<Address, std::string> res;
+      if (type_object_candidates_addresses.size() > 0) {
+        // int idx = 0;
+        std::atomic<int> idx = 0;
+        std::mutex m;
+#pragma omp parallel for
+        for (int i = 0; i < mrgs.size(); i++) {
+          auto& mrg = mrgs[i];
+          // std::for_each(std::execution::unseq, mrgs.begin(), mrgs.end(), [&](auto& mrg) {
+          //  for (auto& mrg : mrgs) {
+          // std::cout << ++idx << "/" << mrgs.size() << std::endl;
+          std::vector<Address> mr_content_as_uint64_t = ReadMemoryRegionContentAsULongArray(mrg);
+          if (mr_content_as_uint64_t.size() > 0) {
+            for (uint64_t candidate_address_index = 0; candidate_address_index + 4 < mr_content_as_uint64_t.size(); ++candidate_address_index) {
+              auto candidate_address_in_process = mrg.first + candidate_address_index * 8;
+
+              auto candidate_ob_type = mr_content_as_uint64_t[candidate_address_index + 1];
+
+              if (type_object_candidates_addresses.find(candidate_ob_type) == type_object_candidates_addresses.end()) continue;
+
+              const auto& candidate_tp_name = ReadNullTerminatedAsciiStringFromAddressUpTo255(mr_content_as_uint64_t[candidate_address_index + 3]);
+
+              if (candidate_tp_name.size() < 1) continue;
+              m.lock();
+              res.insert(std::make_pair(candidate_address_in_process, candidate_tp_name));
+              m.unlock();
+            }
+          }
+        }
+      }
+      return res;
+    };
+    auto EnumerateCandidatesForInstancesOfPythonType = [&](const std::vector<Address>& type_object_candidates_addresses) {
+      std::vector<Address> res;
+      if (type_object_candidates_addresses.size() > 0) {
+        std::atomic<int> idx = 0;
+        std::mutex m;
+#pragma omp parallel for
+        for (int i = 0; i < mrgs.size(); i++) {
+          auto& mrg = mrgs[i];
+          // std::for_each(std::execution::unseq, mrgs.begin(), mrgs.end(), [&](auto& mrg) {
+          //  for (auto& mrg : mrgs) {
+          // std::cout << ++idx << "/" << mrgs.size() << std::endl;
+          std::vector<Address> mr_content_as_uint64_t = ReadMemoryRegionContentAsULongArray(mrg);
+          if (mr_content_as_uint64_t.size() > 0) {
+            for (auto candidate_address_index = 0; candidate_address_index + 4 < mr_content_as_uint64_t.size(); ++candidate_address_index) {
+              auto candidate_address_in_process = mrg.first + candidate_address_index * 8;
+
+              auto candidate_ob_type = mr_content_as_uint64_t[candidate_address_index + 1];
+
+              if (std::find(type_object_candidates_addresses.begin(), type_object_candidates_addresses.end(), candidate_ob_type) ==
+                  type_object_candidates_addresses.end())
+                continue;
+              m.lock();
+              res.push_back(candidate_address_in_process);
+              m.unlock();
+            }
+          }
+        }
+      }
+      return res;
+    };
+    auto cfptos = EnumerateCandidatesForPythonTypeObjects(EnumerateCandidatesForPythonTypeObjectType());
+    std::vector<Address> res;
+    for (auto& cfpto : cfptos) {
+      if (cfpto.second == "UIRoot") {
+        res.push_back(cfpto.first);
+      }
+    }
+
+    return EnumerateCandidatesForInstancesOfPythonType(res);
+  }
+
+  // Decrepated
   UITreeNodeFixed* ReadUITreeFromAddressRFixed(Address nodeAddress, int maxDepth) {
     // if (maxDepth == 16) {
     //   chi.clear();
@@ -729,357 +1079,137 @@ class EveUITreeReader {
     };
     ReadChildren();
   }
-
-  std::string ReadPythonStringValue(Address address, Size maxlength) {
-    //  https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Include/stringobject.h
-
-    auto stringObjectMemory = memory_reader_->ReadBytes(address, 0x20);
-
-    if (!stringObjectMemory) return "";
-
-    auto stringObject_ob_size = Convert::ToUInt64(stringObjectMemory->Raw(), 0x10);
-
-    if (0 < maxlength && maxlength < stringObject_ob_size) return "";
-
-    auto stringBytes = memory_reader_->ReadBytes(address + 8 * 4, stringObject_ob_size);
-
-    if (!stringBytes) return "";
-    std::string res;
-    int idx = 0;
-    for (int i = 0; i < stringBytes->Count(); i++) {
-      if (++idx > stringObject_ob_size) break;
-      res.push_back((*stringBytes)[i]);
-    }
-    return res;
-  }
-  double ReadPythonFloatObjectValue(Address address) {
-    //  https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Include/floatobject.h
-
-    auto pythonObjectMemory = memory_reader_->ReadBytes(address, 0x20);
-
-    if (!pythonObjectMemory) return 0;
-
-    return Convert::ToDouble(pythonObjectMemory->Raw(), 0x10);
-  }
-  std::string ReadPythonStringValueMaxLength4000(Address strObjectAddress) {
-    return cache_.GetPythonStringValueMaxLength4000(
-        strObjectAddress, [&](Address strObjectAddress) -> std::string { return ReadPythonStringValue(strObjectAddress, 4000); });
-  }
-
-  std::shared_ptr<std::vector<PyDictEntry>> ReadActiveDictionaryEntriesFromDictionaryAddress(Address dictionaryAddress) {
-    auto default_res = std::make_shared<std::vector<PyDictEntry>>(std::vector<PyDictEntry>());
-    /*
-    Sources:
-    https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Include/dictobject.h
-    https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Objects/dictobject.c
-    */
-
-    auto data = memory_reader_->ReadBytes(dictionaryAddress, 0x30);
-    if (!data) return default_res;
-    std::vector<int64_t> dict_memory_as_long_array;
-    dict_memory_as_long_array = Convert::AsInt64Array(data);
-
-    //  https://github.com/python/cpython/blob/362ede2232107fc54d406bb9de7711ff7574e1d4/Include/dictobject.h#L60-L89
-
-    auto ma_fill = dict_memory_as_long_array[2];
-    auto ma_used = dict_memory_as_long_array[3];
-    auto ma_mask = dict_memory_as_long_array[4];
-    auto ma_table = dict_memory_as_long_array[5];
-
-    //  Console.WriteLine($"Details for dictionary 0x{dictionaryAddress:X}:
-    //  type_name = '{dictTypeName}' ma_mask = 0x{ma_mask:X}, ma_table =
-    //  0x{ma_table:X}.");
-
-    auto numberOfSlots = ma_mask + 1;
-
-    if (numberOfSlots < 0 || 10000 < numberOfSlots) {
-      //  Avoid stalling the whole reading process when a single dictionary
-      //  contains garbage.
-      return default_res;
-    }
-
-    auto slotsMemorySize = numberOfSlots * 8 * 3;
-    data = memory_reader_->ReadBytes(ma_table, slotsMemorySize);
-    if (!data) return std::make_shared<std::vector<PyDictEntry>>(std::vector<PyDictEntry>());
-
-    auto slots_memory_as_long_array = Convert::AsUInt64Array(data);
-    auto entries = std::make_shared<std::vector<PyDictEntry>>(std::vector<PyDictEntry>());
-
-    for (auto slotIndex = 0; slotIndex < numberOfSlots; ++slotIndex) {
-      auto hash = slots_memory_as_long_array[slotIndex * 3];
-      auto key = slots_memory_as_long_array[slotIndex * 3 + 1];
-      auto value = slots_memory_as_long_array[slotIndex * 3 + 2];
-
-      if (key == 0 || value == 0) continue;
-
-      entries->push_back(PyDictEntry{hash, key, value});
-    }
-
-    return entries;
-  }
-  std::shared_ptr<std::map<std::string, uint64_t>> GetDictionaryEntriesWithStringKeys(uint64_t dictionary_object_address) {
-    auto default_res = std::make_shared<std::map<std::string, uint64_t>>(std::map<std::string, uint64_t>());
-    auto dictionaryEntries = ReadActiveDictionaryEntriesFromDictionaryAddress(dictionary_object_address);
-    if (!dictionaryEntries) return default_res;
-    auto res = std::map<std::string, uint64_t>();
-    for (auto& de : *dictionaryEntries) {
-      res[ReadPythonStringValueMaxLength4000(de.key)] = de.value;
-    }
-    return std::make_shared<std::map<std::string, uint64_t>>(res);
-  }
-
-  std::string GetPythonTypeNameFromPythonTypeObjectAddress(Address typeObjectAddress) {
-    auto typeObjectMemory = memory_reader_->ReadBytes(typeObjectAddress, 0x20);
-    if (!typeObjectMemory) return "";
-    auto tp_name = Convert::ToUInt64(typeObjectMemory->Raw(), 0x18);
-    auto nameBytes = memory_reader_->ReadBytes(tp_name, 30);
-    if (!nameBytes) return "";
-    return Convert::AsASCIIString(nameBytes);
-  }
-
-  std::string GetPythonTypeNameFromPythonObjectAddress(Address objectAddress) {
-    return cache_.GetPythonTypeNameFromPythonObjectAddress(objectAddress, [&](Address objectAddress) -> std::string {
-      auto objectMemory = memory_reader_->ReadBytes(objectAddress, 0x10);
-      if (!objectMemory) return "";
-      return GetPythonTypeNameFromPythonTypeObjectAddress(Convert::ToUInt64(objectMemory->Raw(), 8));
-    });
-  }
-
-  std::any GetDictEntryValueRepresentation(Address valueOjectAddress) {
-    return cache_.GetDictEntryValueRepresentation(valueOjectAddress, [&](Address valueOjectAddress) -> std::any {
-      auto genericRepresentation = UITreeNode::DictEntryValueGenericRepresentation{valueOjectAddress, ""};
-
-      auto value_pythonTypeName = cache_.GetPythonTypeNameFromPythonObjectAddress(valueOjectAddress, [&](Address address) -> std::string {
-        auto objectMemory = memory_reader_->ReadBytes(address, 0x10);
-
-        if (!objectMemory) return "";
-        return GetPythonTypeNameFromPythonTypeObjectAddress(Convert::ToUInt64(objectMemory->Raw(), 8));
-      });
-
-      genericRepresentation.python_object_type_name = value_pythonTypeName;
-
-      if (value_pythonTypeName.empty()) return genericRepresentation;
-
-      auto specializedRepresentation = specialized_reading_from_python_type_.find(value_pythonTypeName);
-      if (value_pythonTypeName == "int") return specialized_reading_from_python_type_int(valueOjectAddress);
-      if (value_pythonTypeName == "bool") return specialized_reading_from_python_type_bool(valueOjectAddress);
-      if (value_pythonTypeName == "float") return specialized_reading_from_python_type_float(valueOjectAddress);
-      if (value_pythonTypeName == "unicode") return specialized_reading_from_python_type_unicode(valueOjectAddress);
-      if (value_pythonTypeName == "Bunch") return specialized_reading_from_python_type_Bunch(valueOjectAddress);
-      if (value_pythonTypeName == "str") return specialized_reading_from_python_type_str(valueOjectAddress);
-      if (specializedRepresentation == specialized_reading_from_python_type_.end()) return genericRepresentation;
-      return specializedRepresentation->second(genericRepresentation.address);
-    });
-  }
-
-  // about finding root address
-  std::map<Address, Size> ReadCommittedMemoryRegionsFromProcess(uint64_t processId) {
-    MemoryReaderFromProcess mr(processId);
-
-    Address address = 0;
-
-    auto committed_regions = std::map<Address, Size>();
-
-    do {
-      MEMORY_BASIC_INFORMATION m;
-      auto _ = VirtualQueryEx(mr.handle_, (LPCVOID*)address, &m, sizeof(MEMORY_BASIC_INFORMATION64));
-
-      auto region_protection = m.Protect;
-
-      if (address == (Address)m.BaseAddress + (Size)m.RegionSize) break;
-
-      address = (Address)m.BaseAddress + (Size)m.RegionSize;
-
-      if (m.State != MEM_COMMIT) continue;
-
-      auto protection_flags_to_skip = PAGE_GUARD | PAGE_NOACCESS;
-      auto matching_flags_to_skip = protection_flags_to_skip & region_protection;
-
-      if (matching_flags_to_skip != 0) {
-        continue;
-      }
-
-      committed_regions[(Address)m.BaseAddress] = m.RegionSize;
-
-    } while (true);
-    memory_regions_ = committed_regions;
-    return committed_regions;
-  }
-
-  std::vector<Address> EnumeratePossibleAddressesForUIRootObjects(const std::map<Address, Size>& mmrgs) {
-    std::vector<std::pair<Address, Size>> mrgs;
-    for (auto& mrg : mmrgs) {
-      auto max_segment_size = 1024 * maxSegSize;
-      if (mrg.second > max_segment_size) {
-        auto start = mrg.first;
-        auto bytes_left = mrg.second;
-        while (bytes_left > max_segment_size) {
-          mrgs.push_back(std::make_pair(start, max_segment_size));
-          start += max_segment_size;
-          start -= 8;
-          bytes_left -= max_segment_size;
-          bytes_left += 8;
-        }
-        if (bytes_left > 0) {
-          mrgs.push_back(std::make_pair(start, bytes_left));
-        }
-      } else {
-        mrgs.push_back(mrg);
-      }
-    }
-    auto ReadNullTerminatedAsciiStringFromAddressUpTo255 = [&](Address address, int size = 0x100) {
-      auto bytes_before_truncate = memory_reader_->ReadBytes(address, size);
-      if (!bytes_before_truncate) return (std::string) "";
-
-      return Convert::AsASCIIString(bytes_before_truncate);
-    };
-    auto ReadMemoryRegionContentAsULongArray = [&](const std::pair<Address, Size>& mrg) {
-      auto length = mrg.second;
-      auto data = memory_reader_->ReadBytes(mrg.first, length);
-      if (!data) return std::vector<uint64_t>();
-
-      return Convert::AsUInt64Array(data);
-    };
-
-    auto test = [&]() {
-      // auto aa = 0x26d8c8177d0;
-      // auto ss = ReadNullTerminatedAsciiStringFromAddressUpTo255(aa, 7);
-      std::vector<Address> res;
-      size_t step = 0;
-      // std::ofstream logger("test.txt");
-      // logger << mrgs.size() << std::endl;
-      std::atomic<int> c = 0;
-#pragma omp parallel for
-      for (int i = 0; i < mrgs.size(); i++) {
-        auto& mrg = mrgs[i];
-        std::vector<Address> mr_content_as_uint64_t = ReadMemoryRegionContentAsULongArray(mrg);
-        for (auto o = 0; o < mr_content_as_uint64_t.size(); o++) {
-          // auto toab = memory_reader_->ReadBytes(mr_content_as_uint64_t[o], 8);
-          // if (toab) {
-          // auto toa = Convert::ToInt64(toab->Raw(), 0);
-          auto toa = mr_content_as_uint64_t[o];
-          auto tonab = memory_reader_->ReadBytes(toa + 24, 8);
-          if (tonab) {
-            auto tona = Convert::ToInt64(tonab->Raw(), 0);
-            // auto toa = tob;
-            auto ton = ReadNullTerminatedAsciiStringFromAddressUpTo255(tona, 7);
-            if (ton == "UIRoot") {
-#pragma omp critical
-              res.push_back(mrg.first + o * 8 - 8);
-#pragma omp critical
-              std::cout << mrg.first + o * 8 - 8 << std::endl;
-            }
-          }
-          //}
-        }
-        c++;
-#pragma omp critical
-        std::cout << c << std::endl;
-      }
-      // logger.flush();
-      return res;
-    };
-    // return test();
-
-    auto EnumerateCandidatesForPythonTypeObjectType = [&]() {
-      std::unordered_set<Address> res;
-      std::atomic<int> idx = 0;
-      std::mutex m;
-#pragma omp parallel for
-      for (int i = 0; i < mrgs.size(); i++) {
-        auto& mrg = mrgs[i];
-        std::vector<Address> mr_content_as_uint64_t = ReadMemoryRegionContentAsULongArray(mrg);
-
-        if (mr_content_as_uint64_t.size() > 0) {
-          for (auto candidate_address_index = 0; candidate_address_index + 4 < mr_content_as_uint64_t.size(); ++candidate_address_index) {
-            auto candidate_address_in_process = mrg.first + candidate_address_index * 8;
-
-            auto candidate_ob_type = mr_content_as_uint64_t[candidate_address_index + 1];
-
-            if (candidate_ob_type != candidate_address_in_process) continue;
-
-            auto candidate_tp_name = ReadNullTerminatedAsciiStringFromAddressUpTo255(mr_content_as_uint64_t[candidate_address_index + 3]);
-            if (candidate_tp_name != "type") continue;
-            m.lock();
-            res.insert(candidate_address_in_process);
-            m.unlock();
-          }
-        }
-      }
-      return res;
-    };
-    auto EnumerateCandidatesForPythonTypeObjects = [&](const std::unordered_set<Address>& type_object_candidates_addresses) {
-      std::map<Address, std::string> res;
-      if (type_object_candidates_addresses.size() > 0) {
-        // int idx = 0;
-        std::atomic<int> idx = 0;
-        std::mutex m;
-#pragma omp parallel for
-        for (int i = 0; i < mrgs.size(); i++) {
-          auto& mrg = mrgs[i];
-          // std::for_each(std::execution::unseq, mrgs.begin(), mrgs.end(), [&](auto& mrg) {
-          //  for (auto& mrg : mrgs) {
-          // std::cout << ++idx << "/" << mrgs.size() << std::endl;
-          std::vector<Address> mr_content_as_uint64_t = ReadMemoryRegionContentAsULongArray(mrg);
-          if (mr_content_as_uint64_t.size() > 0) {
-            for (uint64_t candidate_address_index = 0; candidate_address_index + 4 < mr_content_as_uint64_t.size(); ++candidate_address_index) {
-              auto candidate_address_in_process = mrg.first + candidate_address_index * 8;
-
-              auto candidate_ob_type = mr_content_as_uint64_t[candidate_address_index + 1];
-
-              if (type_object_candidates_addresses.find(candidate_ob_type) == type_object_candidates_addresses.end()) continue;
-
-              auto candidate_tp_name = ReadNullTerminatedAsciiStringFromAddressUpTo255(mr_content_as_uint64_t[candidate_address_index + 3]);
-
-              if (candidate_tp_name.size() < 1) continue;
-              m.lock();
-              res.insert(std::make_pair(candidate_address_in_process, candidate_tp_name));
-              m.unlock();
-            }
-          }
-        }
-      }
-      return res;
-    };
-    auto EnumerateCandidatesForInstancesOfPythonType = [&](const std::vector<Address>& type_object_candidates_addresses) {
-      std::vector<Address> res;
-      if (type_object_candidates_addresses.size() > 0) {
-        std::atomic<int> idx = 0;
-        std::mutex m;
-#pragma omp parallel for
-        for (int i = 0; i < mrgs.size(); i++) {
-          auto& mrg = mrgs[i];
-          // std::for_each(std::execution::unseq, mrgs.begin(), mrgs.end(), [&](auto& mrg) {
-          //  for (auto& mrg : mrgs) {
-          // std::cout << ++idx << "/" << mrgs.size() << std::endl;
-          std::vector<Address> mr_content_as_uint64_t = ReadMemoryRegionContentAsULongArray(mrg);
-          if (mr_content_as_uint64_t.size() > 0) {
-            for (auto candidate_address_index = 0; candidate_address_index + 4 < mr_content_as_uint64_t.size(); ++candidate_address_index) {
-              auto candidate_address_in_process = mrg.first + candidate_address_index * 8;
-
-              auto candidate_ob_type = mr_content_as_uint64_t[candidate_address_index + 1];
-
-              if (std::find(type_object_candidates_addresses.begin(), type_object_candidates_addresses.end(), candidate_ob_type) ==
-                  type_object_candidates_addresses.end())
-                continue;
-              m.lock();
-              res.push_back(candidate_address_in_process);
-              m.unlock();
-            }
-          }
-        }
-      }
-      return res;
-    };
-    auto cfptos = EnumerateCandidatesForPythonTypeObjects(EnumerateCandidatesForPythonTypeObjectType());
-    std::vector<Address> res;
-    for (auto& cfpto : cfptos) {
-      if (cfpto.second == "UIRoot") {
-        res.push_back(cfpto.first);
-      }
-    }
-
-    return EnumerateCandidatesForInstancesOfPythonType(res);
-  }
 };
+
+void TreeToTreePB(UITreeNode* root_in, UITreeNodePB* root_out) {
+  if (root_in == nullptr) {
+    root_out->set_python_object_type_name("Can't read");
+    return;
+  }
+  root_out->set_python_object_type_name(root_in->python_object_type_name_);
+
+  auto res = root_in->dict_entries_of_interest_.find("_setText");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    root_out->set__settext(Convert::AnyStringToBytes(res->second));
+  }
+  res = root_in->dict_entries_of_interest_.find("_name");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    root_out->set__name(Convert::AnyStringToBytes(res->second));
+  }
+  res = root_in->dict_entries_of_interest_.find("_text");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    root_out->set__text(Convert::AnyStringToBytes(root_in->dict_entries_of_interest_.find("_text")->second));
+  }
+  res = root_in->dict_entries_of_interest_.find("_hint");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    root_out->set__hint(Convert::AnyStringToBytes(root_in->dict_entries_of_interest_.find("_hint")->second));
+  }
+  res = root_in->dict_entries_of_interest_.find("_top");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set__top(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_top")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("_left");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set__left(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_left")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("_width");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set__width(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_width")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("_height");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set__height(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_height")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("_displayX");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set__displayx(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_displayX")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("_displayY");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set__displayy(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_displayY")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("_selected");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set__selected(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_selected")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("ramp_active");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set_active(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("ramp_active")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("isDeactivating");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set_isdeactivating(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("isDeactivating")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("_display");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set_display(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_display")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("quantity");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(int64_t)) {
+      root_out->set_quantity(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("quantity")->second));
+    }
+  }
+  res = root_in->dict_entries_of_interest_.find("_lastValue");
+  if (res != root_in->dict_entries_of_interest_.end()) {
+    if (res->second.type() == typeid(double)) {
+      root_out->set__lastvalue(std::any_cast<double>(root_in->dict_entries_of_interest_.find("_lastValue")->second));
+    }
+  }
+  for (auto& c : root_in->children_) {
+    TreeToTreePB(c.get(), root_out->add_children());
+  }
+}
+
+void TreeToTreePB2211(UITreeNode* root_in, UITreeNodePB2211* root_out) {
+  if (root_in == nullptr) {
+    root_out->set_python_object_type_name("null");
+    return;
+  }
+  root_out->set_python_object_type_name(root_in->python_object_type_name_);
+  root_out->set_python_object_address(root_in->python_object_address_);
+
+  auto& fields = *root_out->mutable_fields();
+  for (const auto& f : root_in->dict_entries_of_interest_) {
+    if (f.second.type() == typeid(int64_t)) {
+      fields[f.first].set_int32_value(std::any_cast<int64_t>(f.second));
+      continue;
+    }
+    if (f.second.type() == typeid(double)) {
+      fields[f.first].set_double_value(std::any_cast<double>(f.second));
+      continue;
+    }
+    if (f.second.type() == typeid(std::string) || f.second.type() == typeid(std::wstring)) {
+      fields[f.first].set_string_value(Convert::AnyStringToBytes(f.second));
+      continue;
+    }
+    if (f.second.type() == typeid(bool)) {
+      fields[f.first].set_bool_value(std::any_cast<bool>(f.second));
+      continue;
+    }
+  }
+  for (auto& c : root_in->children_) {
+    TreeToTreePB2211(c.get(), root_out->add_children());
+  }
+}
 }  // namespace EveMemoryReading

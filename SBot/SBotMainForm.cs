@@ -36,13 +36,12 @@ namespace SBot
         string currentClient="";
         string currentConfig="";
 
-        Type EUITR_type;
         byte[] injection_dll_bytes_;
         byte[] botlogicBytes;
 
         bool control_mouse_ = false;
 
-        static readonly HttpClient client = new HttpClient();
+        static readonly HttpClient client = new();
         static readonly string defaultUserAgent = "SBot";
         static readonly string appVersion = "(0.22.11)";
 
@@ -53,8 +52,7 @@ namespace SBot
             //list_of_bots_.DoubleBuffered(true);
             Directory.GetFiles(Application.StartupPath+"", "*.yaml").ToList().ForEach(c => listboxConfigs.Items.Add(c.Split("\\").Last()));
 
-            EUITR_type = typeof(EveUITreeReaderCM);
-            using (StreamReader CBPReader = new StreamReader("last.save"))
+            using (StreamReader CBPReader = new("last.save"))
             {
                 try
                 {
@@ -97,11 +95,10 @@ namespace SBot
                     else
                     {
                         Assembly assembly = Assembly.Load(botlogicBytes);
-                        Type? tMOTD = assembly.GetExportedTypes().Where(t => t.GetInterfaces().Contains(typeof(IMOTD))).FirstOrDefault();
+                        Type tMOTD = assembly.GetExportedTypes().Where(t => t.GetInterfaces().Contains(typeof(IMOTD))).FirstOrDefault();
                         if (tMOTD != null)
                         {
-                            var motd = Activator.CreateInstance(tMOTD) as IMOTD;
-                            if (motd != null)
+                            if (Activator.CreateInstance(tMOTD) is IMOTD motd)
                             {
                                 statusStrip1.Items[0].Text = "bots loaded";
                                 motd.MOTD();
@@ -136,9 +133,11 @@ namespace SBot
                             {
                                 if (!bots.Any(b => b.process.Id.Equals(p.Id)))
                                 {
-                                    Bot b = new();
-                                    b.process = p;
-                                    b.EUITR = new EveUITreeReaderCM(injection_dll_bytes_);
+                                    Bot b = new()
+                                    {
+                                        process = p,
+                                        EUITR = new EveUITreeReaderCM(injection_dll_bytes_)
+                                    };
                                     b.EUITR.FindRootAddress(b.process.Id);
                                     b.botRun = false;
                                     lock (bots)
@@ -255,7 +254,7 @@ namespace SBot
                 {
                     CBPairs.Add(client, config);
                 }
-                using (StreamWriter CBPWriter = new StreamWriter("last.save"))
+                using (StreamWriter CBPWriter = new("last.save"))
                 {
                     CBPWriter.Write(new Serializer().Serialize(CBPairs));
                     //CBPSerializer.Serialize(CBPWriter, CBPairs);
@@ -291,9 +290,6 @@ namespace SBot
                 b.botLogic.logWriter.LogWrite("Stopped");
             });
         }
-
-        [DllImport("User32.dll")]
-        public static extern Int32 SetForegroundWindow(int hWnd);
 
         private void Timer0_Tick(object sender, EventArgs e)
         {
@@ -392,22 +388,22 @@ namespace SBot
             }
         }
 
-        private void buttonPBS_Click(object sender, EventArgs e)
+        private void ButtonPBS_Click(object sender, EventArgs e)
         {
-            OpenFileDialog dialog = new OpenFileDialog();
-            dialog.Filter = "save files (*.save)|*.save";
-            dialog.Title = "Please select an save file to resume";
-            dialog.InitialDirectory = AppContext.BaseDirectory;
+            OpenFileDialog dialog = new()
+            {
+                Filter = "save files (*.save)|*.save",
+                Title = "Please select an save file to resume",
+                InitialDirectory = AppContext.BaseDirectory
+            };
 
             if (dialog.ShowDialog() == DialogResult.OK)
             {
                 try
                 {
-                    using (StreamReader CBPReader = new StreamReader(dialog.FileName))
-                    {
-                        PBS(new Deserializer().Deserialize<Dictionary<string, string>>(CBPReader.ReadToEnd()));
-                        //PBS(CBPSerializer.Deserialize(CBPReader) as Dictionary<string, string>);
-                    }
+                    using StreamReader CBPReader = new(dialog.FileName);
+                    PBS(new Deserializer().Deserialize<Dictionary<string, string>>(CBPReader.ReadToEnd()));
+                    //PBS(CBPSerializer.Deserialize(CBPReader) as Dictionary<string, string>);
                 }
                 catch(Exception ex)
                 {
@@ -427,7 +423,7 @@ namespace SBot
             }
         }
 
-        private void button3_Click(object sender, EventArgs e)
+        private void Button3_Click(object sender, EventArgs e)
         {
             try
             {
@@ -440,7 +436,7 @@ namespace SBot
             }
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        private void Button2_Click(object sender, EventArgs e)
         {
             if (!listboxConfigs.Items.Cast<string>().Any(c => c.Equals(currentConfig)))
             {

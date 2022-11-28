@@ -18,7 +18,7 @@ namespace SBotLogicImpl
     public sealed class RSAnom : BotLogicRat
     {
 
-        Anom nextAnom;
+        Anom? nextAnom;
         public override int OnNavigate()
         {
             string navigate = "navigate";
@@ -111,13 +111,13 @@ namespace SBotLogicImpl
                         }
                         else
                         {
-                            WarpToAbstract(nextAnom.Node);
-                            if (ui.shipUI.navistate_.warp)
-                            {
-                                input.KeyClick(keyStopShip);
-                                Thread.Sleep(2000);
-                                return 1;
-                            }
+                            //WarpToAbstract(nextAnom.Node);
+                            //if (ui.shipUI.navistate_.warp)
+                            //{
+                            //    input.KeyClick(keyStopShip);
+                            //    Thread.Sleep(2000);
+                            //    return 1;
+                            //}
                         }
                     }
                     break;
@@ -135,7 +135,10 @@ namespace SBotLogicImpl
                     {
                         if (ui.overview.NumPlayer() > 0)
                         {
-                            occupiedAnoms.Add(nextAnom.Id);
+                            if (nextAnom != null)
+                            {
+                                occupiedAnoms.Add(nextAnom.Id);
+                            }
                             state[navigate] = 0;
                         }
                         else

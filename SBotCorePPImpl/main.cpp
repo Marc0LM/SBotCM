@@ -13,6 +13,7 @@
 #include "MemoryReaderInProcess.h"
 
 using namespace EveMemoryReading;
+
 uint64_t doread;
 std::thread* read;
 HANDLE hMapFile, sr, sw;
@@ -24,149 +25,10 @@ std::ofstream logger;
 constexpr auto szsize = 1024 + 1024 * 1024;
 std::string PB_buf;
 std::vector<char> PBArray;
-struct UIN {
-  uint64_t children[16]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-};
-static UITreeNodeFixed tree[8000];
-void TreeToTreePB(UITreeNode* root_in, UITreeNodePB* root_out) {
-  if (root_in == nullptr) {
-    root_out->set_python_object_type_name("Can't read");
-    return;
-  }
-  root_out->set_python_object_type_name(root_in->python_object_type_name_);
-
-  auto res = root_in->dict_entries_of_interest_.find("_setText");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    root_out->set__settext(Convert::AnyStringToBytes(res->second));
-  }
-  res = root_in->dict_entries_of_interest_.find("_name");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    root_out->set__name(Convert::AnyStringToBytes(res->second));
-  }
-  res = root_in->dict_entries_of_interest_.find("_text");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    root_out->set__text(Convert::AnyStringToBytes(root_in->dict_entries_of_interest_.find("_text")->second));
-  }
-  res = root_in->dict_entries_of_interest_.find("_hint");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    root_out->set__hint(Convert::AnyStringToBytes(root_in->dict_entries_of_interest_.find("_hint")->second));
-  }
-  res = root_in->dict_entries_of_interest_.find("_top");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set__top(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_top")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("_left");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set__left(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_left")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("_width");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set__width(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_width")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("_height");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set__height(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_height")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("_displayX");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set__displayx(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_displayX")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("_displayY");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set__displayy(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_displayY")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("_selected");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set__selected(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_selected")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("ramp_active");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set_active(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("ramp_active")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("isDeactivating");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set_isdeactivating(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("isDeactivating")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("_display");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set_display(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("_display")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("quantity");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(int64_t)) {
-      root_out->set_quantity(std::any_cast<int64_t>(root_in->dict_entries_of_interest_.find("quantity")->second));
-    }
-  }
-  res = root_in->dict_entries_of_interest_.find("_lastValue");
-  if (res != root_in->dict_entries_of_interest_.end()) {
-    if (res->second.type() == typeid(double)) {
-      root_out->set__lastvalue(std::any_cast<double>(root_in->dict_entries_of_interest_.find("_lastValue")->second));
-    }
-  }
-  for (auto& c : root_in->children_) {
-    TreeToTreePB(c.get(), root_out->add_children());
-  }
-}
-int main() {
-  // emr = EveUITreeReader(29508);
-  //  ra = 2665438592080;
-  while (true) {
-    int pid;
-    std::cin >> pid;
-    emr = EveUITreeReader(pid);
-    ra = emr.GetRootAddress();
-  }
-  return 0;
-  //    auto ra = 1950930178568;
-  auto depth = 64;
-  time_t s;
-  while (1) {
-    auto UITree = emr.ReadUITreeFromAddress(ra, depth);
-    auto UITreePB = std::make_unique<UITreeNodePB>();
-    TreeToTreePB(UITree.get(), UITreePB.get());
-    auto bytesize2 = UITreePB->ByteSizeLong();
-    // if (UITreePB->ByteSize() > PB_buf.size()) {
-    //   PB_buf.resize(UITreePB->ByteSize() * 2);
-    // }
-    UITreePB->SerializeToString(&PB_buf);
-    std::cout << PB_buf.size() << std::endl;
-    std::cout << UITreePB->ByteSizeLong() << std::endl;
-    auto t = new char[PB_buf.size()];
-    memcpy(t, &PB_buf[0], UITreePB->ByteSizeLong());
-  }
-  return 0;
-}
-extern "C" __declspec(dllexport) uint64_t GetUITreeFixed() { return (uint64_t)UITreeNodeFixedPool::begin_; }
-extern "C" __declspec(dllexport) uint64_t ReadEveUITree(int32_t pid, uint64_t root_address, uint32_t depth) {
-  EveUITreeReader emr(pid);
-  emr.ReadUITreeFromAddressFixed(root_address, depth);
-  return GetUITreeFixed();
-}
-extern "C" __declspec(dllexport) uint64_t GetRootAddress(int32_t pid) {
-  EveUITreeReader temr(pid);
-  auto ra = temr.GetRootAddress();
-  return ra;
-}
+// struct UIN {
+//   uint64_t children[16]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// };
+// static UITreeNodeFixed tree[8000];
 
 extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD fdwReason, LPVOID lpvReserved) {
   switch (fdwReason) {
@@ -193,7 +55,7 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
       read = new std::thread([&]() {
         emr = EveUITreeReader(GetCurrentProcessId());
         auto rs = std::chrono::steady_clock::now();
-        ra = emr.GetRootAddress();
+        ra = emr.FindRootAddress();
         auto rdur = std::chrono::duration<double>(std::chrono::steady_clock::now() - rs).count();
         logger << "ra in " << rdur << std::endl;
         memcpy(pBuf, &ra, 8);
@@ -252,6 +114,21 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
               logger << PB_buf_address << std::endl;
               memcpy((char*)pBuf + 16, &PB_buf_address, 8);
             } break;
+            case 5: {
+              // emr.readAll = true;
+              auto UITree = emr.ReadUITreeFromAddress(ra, depth);
+              auto UITreePB2211 = std::make_unique<UITreeNodePB2211>();
+              TreeToTreePB2211(UITree.get(), UITreePB2211.get());
+              auto bytesize = UITreePB2211->ByteSizeLong();
+              if (bytesize > PBArray.capacity()) {
+                PBArray.reserve(bytesize * 2);
+              }
+              UITreePB2211->SerializeToArray(PBArray.data(), bytesize);
+              memcpy((char*)pBuf + 8, &bytesize, 8);
+              Address PB_buf_address = (Address)PBArray.data();
+              logger << PB_buf_address << std::endl;
+              memcpy((char*)pBuf + 16, &PB_buf_address, 8);
+            } break;
           }
           read_count++;
 
@@ -278,4 +155,52 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
       break;
   }
   return true;
+}
+
+int main() {
+  // emr = EveUITreeReader(29508);
+  //  ra = 2665438592080;
+  while (true) {
+    int pid;
+    std::cin >> pid;
+    emr = EveUITreeReader(pid);
+    ra = 2514811332144;
+    emr.readAll = true;
+    auto UITree = emr.ReadUITreeFromAddress(ra, 16);
+    auto UITreePB2211 = std::make_unique<UITreeNodePB2211>();
+    TreeToTreePB2211(UITree.get(), UITreePB2211.get());
+    auto a = UITreePB2211->ByteSize();
+    volatile auto t = UITreePB2211.get();
+  }
+  return 0;
+  //    auto ra = 1950930178568;
+  auto depth = 64;
+  time_t s;
+  while (1) {
+    auto UITree = emr.ReadUITreeFromAddress(ra, depth);
+    auto UITreePB = std::make_unique<UITreeNodePB>();
+    TreeToTreePB(UITree.get(), UITreePB.get());
+    auto bytesize2 = UITreePB->ByteSizeLong();
+    // if (UITreePB->ByteSize() > PB_buf.size()) {
+    //   PB_buf.resize(UITreePB->ByteSize() * 2);
+    // }
+    UITreePB->SerializeToString(&PB_buf);
+    std::cout << PB_buf.size() << std::endl;
+    std::cout << UITreePB->ByteSizeLong() << std::endl;
+    auto t = new char[PB_buf.size()];
+    memcpy(t, &PB_buf[0], UITreePB->ByteSizeLong());
+  }
+  return 0;
+}
+
+extern "C" __declspec(dllexport) uint64_t GetUITreeFixed() { return (uint64_t)UITreeNodeFixedPool::begin_; }
+extern "C" __declspec(dllexport) uint64_t ReadEveUITree(int32_t pid, uint64_t root_address, uint32_t depth) {
+  EveUITreeReader emr(pid);
+  emr.ReadUITreeFromAddressFixed(root_address, depth);
+  return GetUITreeFixed();
+}
+extern "C" __declspec(dllexport) uint64_t FindRootAddress(int32_t pid) {
+  EveUITreeReader temr(pid);
+  auto ra = temr.FindRootAddress();
+  return ra;
 }

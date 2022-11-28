@@ -58,7 +58,7 @@ namespace SBotCore
         }
         public class EveUI
         {
-            public UITreeNode root=new();
+            public UITreeNode root = new();
             public ChatWindowStack otherChatwindowStack = new(false);
 
             //about retreating
@@ -83,7 +83,7 @@ namespace SBotCore
             public InfoPanelContainer infoPanelContainer = new();//root container of info panel
             public InfoPanelRoute infoPanelRoute = new();
             public InfoPanelESS infoPanelESS = new();
-            
+
             private EveUI(UITreeNode r)
 
             {
@@ -120,7 +120,7 @@ namespace SBotCore
                 infoPanelContainer.Parse(root);
                 infoPanelRoute.Parse(root);
                 infoPanelESS.Parse(root);
-                
+
             }
             public static EveUI Parse(UITreeNode r)
             {
@@ -211,7 +211,7 @@ namespace SBotCore
             public class ProbeScanner : IUiElement
             {
                 UITreeNode node_;
-                public List<Anom> anoms_=new();
+                public List<Anom> anoms_ = new();
 
                 public class Anom
                 {
@@ -273,7 +273,7 @@ namespace SBotCore
                 UITreeNode drones_in_bay_main_entry_;
                 int num_drones_in_bay_;
 
-                public List<(UITreeNode node, string name, string state)> drones_in_space_=new();
+                public List<(UITreeNode node, string name, string state)> drones_in_space_ = new();
 
                 public int NumDronesOutside()
                 {
@@ -330,7 +330,7 @@ namespace SBotCore
             public class Overview : IUiElement
             {
                 UITreeNode overview_;
-                public List<(UITreeNode node, string text, bool selected)> tabs_=new();
+                public List<(UITreeNode node, string text, bool selected)> tabs_ = new();
                 public class OverviewEntry
                 {
                     public UITreeNode node_;
@@ -352,7 +352,7 @@ namespace SBotCore
                         overview_ = ListNodesWithPythonObjectTypeName(root, "OverviewWindowOld").FirstOrDefault();
                         if (overview_ != null)
                         {
-                            tabs_ = ListNodesWithPythonObjectTypeName(ListNodesWithPythonObjectTypeName(overview_, "OverviewTabGroup").First(), "Tab").Select(t => (t, ListNodesWithPropertyValue(t, "_name", (string s) => s.Equals("tabLabel")).First().dict_entries_of_interest.Value<string>("_setText"), t.dict_entries_of_interest.Value<bool>("_selected"))).ToList();
+                            tabs_ = ListNodesWithPythonObjectTypeName(ListNodesWithPythonObjectTypeName(overview_, "OverviewTabGroup").First(), "Tab").Select(t => (t, ListNodesWithPropertyValue(t, "_name", (string s) => "tabLabel".Equals(s)).First().dict_entries_of_interest.Value<string>("_setText"), t.dict_entries_of_interest.Value<bool>("_selected"))).ToList();
                             overviewentrys_ = ListNodesWithPythonObjectTypeName(overview_, "OverviewScrollEntry").Select(oe =>
                             new OverviewEntry
                             {
@@ -388,7 +388,7 @@ namespace SBotCore
                                           }
                                       }
                                   }
-                                  catch (Exception ex)
+                                  catch 
                                   {
                                       e.distance_ = int.MaxValue;
                                       return e;
@@ -396,7 +396,7 @@ namespace SBotCore
                               }).ToList();
                             targeted_ = overviewentrys_.Where(ove => ove.indicators_.Any(i => i.Contains("argeted"))).ToList();
                             targeting_ = overviewentrys_.Where(ove => ove.targeting_).ToList();
-                            not_targeted_ = overviewentrys_.Where(ove => !ove.labels_.Any(l=>l.Contains('['))&& !ove.targeting_ && !ove.indicators_.Any(i => i.Contains("argeted"))).ToList();
+                            not_targeted_ = overviewentrys_.Where(ove => !ove.labels_.Any(l => l.Contains('[')) && !ove.targeting_ && !ove.indicators_.Any(i => i.Contains("argeted"))).ToList();
                             active_target_ = targeted_.FirstOrDefault(t => t.indicators_.Any(i => i.Contains("ActiveTarget")));
 
                         }
@@ -441,7 +441,7 @@ namespace SBotCore
             {
 
                 UITreeNode node;
-                public List<(UITreeNode node, string text)> labels=new();
+                public List<(UITreeNode node, string text)> labels = new();
 
                 public bool Exists()
                 {
@@ -481,7 +481,7 @@ namespace SBotCore
                 public (float speed, bool warp) navistate_;
 
 
-                public List<(UITreeNode node, string text, bool active, bool busy, int quantity)> active_slots_=new();
+                public List<(UITreeNode node, string text, bool active, bool busy, int quantity)> active_slots_ = new();
 
                 public void Parse(UITreeNode root)
                 {
@@ -495,18 +495,19 @@ namespace SBotCore
                             {
                                 var c = s.children.First(c => c.python_object_type_name.Equals("EveLabelSmall"));
                                 var m = s.children.First(c => c.python_object_type_name.Equals("ModuleButton"));
-                                return (s, c.dict_entries_of_interest.Value<string>("_setText").Split(">")[1], 
+                                return (s, c.dict_entries_of_interest.Value<string>("_setText").Split(">")[1],
                                 m.dict_entries_of_interest.Value<bool>("ramp_active") && !m.dict_entries_of_interest.Value<bool>("isDeactivating"),
-                                m.dict_entries_of_interest.Value<bool>("isDeactivating"), 
+                                m.dict_entries_of_interest.Value<bool>("isDeactivating"),
                                 m.dict_entries_of_interest.Value<int>("quantity"));
                             }).ToList();
 
                             var hpgauges = ListNodesWithPythonObjectTypeName(shipui_, "HPGauges").FirstOrDefault();
                             if (hpgauges != null)
                             {
-                                hp_.shield = (int)(ListNodesWithPropertyValue(hpgauges, "_name", (string s) => s == "shieldGauge").FirstOrDefault().dict_entries_of_interest.Value<double>("_lastValue") * 100);
-                                hp_.armor = (int)(ListNodesWithPropertyValue(hpgauges, "_name", (string s) => s == "armorGauge").FirstOrDefault().dict_entries_of_interest.Value<double>("_lastValue") * 100);
-                                hp_.structure = (int)(ListNodesWithPropertyValue(hpgauges, "_name", (string s) => s == "structureGauge").FirstOrDefault().dict_entries_of_interest.Value<double>("_lastValue") * 100);
+                                var hpg = ListNodesWithPropertyValue(hpgauges, "_name", (string s) => "shieldGauge".Equals(s)).FirstOrDefault();//.dict_entries_of_interest.Value<double>("_lastValue");
+                                hp_.shield = (int)(ListNodesWithPropertyValue(hpgauges, "_name", (string s) => "shieldGauge".Equals(s)).FirstOrDefault().dict_entries_of_interest.Value<double>("_lastValue") * 100);
+                                hp_.armor = (int)(ListNodesWithPropertyValue(hpgauges, "_name", (string s) => "armorGauge".Equals(s)).FirstOrDefault().dict_entries_of_interest.Value<double>("_lastValue") * 100);
+                                hp_.structure = (int)(ListNodesWithPropertyValue(hpgauges, "_name", (string s) => "structureGauge".Equals(s)).FirstOrDefault().dict_entries_of_interest.Value<double>("_lastValue") * 100);
                             }
 
                             capContainer = ListNodesWithPythonObjectTypeName(shipui_, "CapacitorContainer").FirstOrDefault();
@@ -832,7 +833,7 @@ namespace SBotCore
                         if (markers != null)
                         {
                             next_waypoint_marker_ = markers.children.FirstOrDefault();
-                            if (next_waypoint_marker_!=null)
+                            if (next_waypoint_marker_ != null)
                             {
                                 var next_waypoint_panel = ListNodesWithPythonObjectTypeName(node_, "NextWaypointPanel").FirstOrDefault();
                                 if (next_waypoint_panel != null)
@@ -841,16 +842,16 @@ namespace SBotCore
                                     if (next_waypoint != null)
                                     {
                                         var next_waypoint_text = next_waypoint.dict_entries_of_interest.Value<string>("_setText");
-                                        if (!next_waypoint_text.Equals("No Destination"))
+                                        if (!"No Destination".Equals(next_waypoint_text))
                                         {
                                             next_system_ = next_waypoint_text.Split("Route")[1].Split('>')[1].Split('<')[0];
                                         }
                                     }
                                 }
-                                
+
                             }
                         }
-                        
+
                     }
                 }
             }
@@ -871,9 +872,9 @@ namespace SBotCore
                 public void Parse(UITreeNode root)
                 {
                     node = ListNodesWithPythonObjectTypeName(root, "InfoPanelESS").FirstOrDefault();
-                    if(node!=null)
+                    if (node != null)
                     {
-                        connecting=ListNodesWithPropertyValue(node,"_name",(string s)=>s.Equals("mainBankHackingCont")).Any();
+                        connecting = ListNodesWithPropertyValue(node, "_name", (string s) => "mainBankHackingCont".Equals(s)).Any();
                     }
                 }
             }

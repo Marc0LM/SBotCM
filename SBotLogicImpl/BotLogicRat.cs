@@ -790,49 +790,49 @@ namespace SBotLogicImpl
                             logWriter.LogWrite("anchoring on drones");
                             anchorType = Anchor.Followdrone;
                             break;
-                            if (ui.overview.tabs_.Any(t => t.text.Equals(tabEntity) && t.selected))//if entitytab is selected
-                            {
-                                if (ui.overview.overviewentrys_.Count > 0)
-                                {
-                                    var entity = ui.overview.overviewentrys_.Where(oe => oe.labels_.Any(l => entityToAnchor.Any(eo => l.Contains(eo)))).OrderBy(e => e.distance_);
-                                    if (entity.Any())
-                                    {
-                                        var c = entity.Count();
-                                        //input.MouseClickLeft(entity.ElementAt(c / 2).node_, ui.root);
-                                        //state["rat"] = 7;
-                                        KeepAtRange(entity.ElementAt(c / 2).node_);
-                                        state["rat"] = 8;
-                                    }
-                                    else
-                                    {
-                                        logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
-                                        state["rat"] = 0;
-                                        break;
-                                    }
-                                }
-                                else
-                                {
-                                    logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
-                                    state["rat"] = 0;
-                                    break;
-                                }
-                            }
-                            else
-                            {
-                                if (!ui.overview.tabs_.Any(t => t.text.Equals(tabEntity)))//check if entitytab exists
-                                {
-                                    logWriter.LogWrite($"NO tab named by '{tabEntity}'");
-                                    logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
-                                    state["rat"] = 0;
-                                    break;
-                                }
-                                else
-                                {
-                                    var (node, text, selected) = ui.overview.tabs_.Where(t => t.text.Equals(tabEntity)).First();
-                                    input.MouseClickLeft(node, ui.root);
-                                }
-                            }
-                            break;
+                            //if (ui.overview.tabs_.Any(t => t.text.Equals(tabEntity) && t.selected))//if entitytab is selected
+                            //{
+                            //    if (ui.overview.overviewentrys_.Count > 0)
+                            //    {
+                            //        var entity = ui.overview.overviewentrys_.Where(oe => oe.labels_.Any(l => entityToAnchor.Any(eo => l.Contains(eo)))).OrderBy(e => e.distance_);
+                            //        if (entity.Any())
+                            //        {
+                            //            var c = entity.Count();
+                            //            //input.MouseClickLeft(entity.ElementAt(c / 2).node_, ui.root);
+                            //            //state["rat"] = 7;
+                            //            KeepAtRange(entity.ElementAt(c / 2).node_);
+                            //            state["rat"] = 8;
+                            //        }
+                            //        else
+                            //        {
+                            //            logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                            //            state["rat"] = 0;
+                            //            break;
+                            //        }
+                            //    }
+                            //    else
+                            //    {
+                            //        logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                            //        state["rat"] = 0;
+                            //        break;
+                            //    }
+                            //}
+                            //else
+                            //{
+                            //    if (!ui.overview.tabs_.Any(t => t.text.Equals(tabEntity)))//check if entitytab exists
+                            //    {
+                            //        logWriter.LogWrite($"NO tab named by '{tabEntity}'");
+                            //        logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                            //        state["rat"] = 0;
+                            //        break;
+                            //    }
+                            //    else
+                            //    {
+                            //        var (node, text, selected) = ui.overview.tabs_.Where(t => t.text.Equals(tabEntity)).First();
+                            //        input.MouseClickLeft(node, ui.root);
+                            //    }
+                            //}
+                            //break;
                         case Anchor.Orbitwreck:
                             logWriter.LogWrite("NOT IMPLEMENTEED YET");
                             logWriter.LogWrite("anchoring on drones");
@@ -940,7 +940,7 @@ namespace SBotLogicImpl
                             noNPCTicks++;
                             if (noNPCTicks > 1)
                             {
-                                if (!ui.probescannerView.anoms_.Any(a => a.Unit.Contains("m")))//Recall drones if anom done 
+                                if (!ui.probescannerView.anoms_.Any(a => a.Unit.Contains('m')))//Recall drones if anom done 
                                 {
                                     if (0 == Recalldrones())
                                     {
@@ -1425,8 +1425,10 @@ namespace SBotLogicImpl
 
             try
             {
-                HttpClient client = new HttpClient();
-                client.Timeout = TimeSpan.FromSeconds(15);
+                HttpClient client = new()
+                {
+                    Timeout = TimeSpan.FromSeconds(15)
+                };
                 string defaultUserAgent = "SBot";
                 string clients = "Anom: ";
                 Process.GetProcessesByName("exefile").ToList().ForEach(p =>

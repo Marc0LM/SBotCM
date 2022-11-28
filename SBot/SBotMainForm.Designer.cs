@@ -181,7 +181,7 @@
             this.buttonPBS.TabIndex = 18;
             this.buttonPBS.Text = "PBS";
             this.buttonPBS.UseVisualStyleBackColor = true;
-            this.buttonPBS.Click += new System.EventHandler(this.buttonPBS_Click);
+            this.buttonPBS.Click += new System.EventHandler(this.ButtonPBS_Click);
             // 
             // button2
             // 
@@ -191,7 +191,7 @@
             this.button2.TabIndex = 19;
             this.button2.Text = "Edit This Config";
             this.button2.UseVisualStyleBackColor = true;
-            this.button2.Click += new System.EventHandler(this.button2_Click);
+            this.button2.Click += new System.EventHandler(this.Button2_Click);
             // 
             // button3
             // 
@@ -201,7 +201,7 @@
             this.button3.TabIndex = 20;
             this.button3.Text = "Generate Templates";
             this.button3.UseVisualStyleBackColor = true;
-            this.button3.Click += new System.EventHandler(this.button3_Click);
+            this.button3.Click += new System.EventHandler(this.Button3_Click);
             // 
             // SBotMainForm
             // 
