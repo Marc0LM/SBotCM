@@ -1,0 +1,30 @@
+﻿using SBotCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Xml.Serialization;
+using static SBotCore.EveUIParser;
+
+namespace SBotLogicImpl
+{
+    public class BotLogicFC : BotLogic
+    {
+        public override string GetBotSummary()=> "";
+
+        public override void OnUpdate()
+        {
+            string m_name_ = ui.otherChatwindowStack.members_.FirstOrDefault(m => m.tag == m.name).name;
+            if (Singleton.Instance.members.ContainsKey(m_name_))
+            {
+                Singleton.Instance.members[m_name_] = ui.shipUI.hp_;
+            }
+            else
+            {
+                Singleton.Instance.members.Add(m_name_, ui.shipUI.hp_);
+            }
+        }
+    }
+
+}

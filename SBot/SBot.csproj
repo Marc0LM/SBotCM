@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+
+    <ImplicitUsings>enable</ImplicitUsings>
+    
+    <StartupObject>SBot.Program</StartupObject>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>a8fr0-bised-001.ico</ApplicationIcon>
+
+    <!--PublishAot>true</PublishAot-->
+    <!--PublishSingleFile>true</PublishSingleFile-->
+    <!--PublishReadyToRun>true</PublishReadyToRun-->
+    <!--SelfContained>true</SelfContained-->
+    <!--RuntimeIdentifier>win-x64</RuntimeIdentifier-->
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Optimize>False</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="a8fr0-bised-001.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SBotCore\SBotCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Google.Protobuf">
+      <HintPath>..\3rdparty\Google.Protobuf.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
