@@ -30,6 +30,7 @@ std::vector<char> PBArray;
 // };
 // static UITreeNodeFixed tree[8000];
 
+// #pragma optimize("", off)
 extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD fdwReason, LPVOID lpvReserved) {
   switch (fdwReason) {
     case DLL_PROCESS_ATTACH: {
@@ -54,6 +55,7 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
       if (!sr || !sw) return false;
       read = new std::thread([&]() {
         emr = EveUITreeReader(GetCurrentProcessId());
+
         auto rs = std::chrono::steady_clock::now();
         ra = emr.FindRootAddress();
         auto rdur = std::chrono::duration<double>(std::chrono::steady_clock::now() - rs).count();
@@ -63,12 +65,14 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
         doread = 1;
         auto depth = 20;
         uint64_t read_count = 0;
+        // emr.memory_reader_ = std::make_shared<MemoryReaderInProcess>();
         while (true) {
           logger << read_count << " ----------------" << std::endl;
           logger << "WFSO" << std::endl;
           WaitForSingleObject(sw, INFINITE);
           // memset((char*)pBuf + 1024, 0, 1024 * 1024);
           logger << "read" << std::endl;
+          double dur = 0;
           auto s = std::chrono::steady_clock::now();
           int read_mode;
           memcpy(&read_mode, (char*)pBuf + 32, 8);
@@ -93,6 +97,7 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
             } break;
             case 3: {
               auto UITree = emr.ReadUITreeFromAddress(ra, depth);
+              dur = std::chrono::duration<double>(std::chrono::steady_clock::now() - s).count();
               auto UITreePB = std::make_unique<UITreeNodePB>();
               TreeToTreePB(UITree.get(), UITreePB.get());
               auto bytesize = UITreePB->ByteSizeLong();
@@ -102,6 +107,7 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
             } break;
             case 4: {
               auto UITree = emr.ReadUITreeFromAddress(ra, depth);
+              dur = std::chrono::duration<double>(std::chrono::steady_clock::now() - s).count();
               auto UITreePB = std::make_unique<UITreeNodePB>();
               TreeToTreePB(UITree.get(), UITreePB.get());
               auto bytesize = UITreePB->ByteSizeLong();
@@ -117,7 +123,9 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
             case 5: {
               // emr.readAll = true;
               auto UITree = emr.ReadUITreeFromAddress(ra, depth);
+
               auto UITreePB2211 = std::make_unique<UITreeNodePB2211>();
+              dur = std::chrono::duration<double>(std::chrono::steady_clock::now() - s).count();
               TreeToTreePB2211(UITree.get(), UITreePB2211.get());
               auto bytesize = UITreePB2211->ByteSizeLong();
               if (bytesize > PBArray.capacity()) {
@@ -132,7 +140,6 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
           }
           read_count++;
 
-          auto dur = std::chrono::duration<double>(std::chrono::steady_clock::now() - s).count();
           logger << dur << std::endl;
           memcpy((char*)pBuf + 24, &dur, 8);
           memcpy((char*)pBuf + 40, &read_count, 8);
@@ -164,9 +171,14 @@ int main() {
     int pid;
     std::cin >> pid;
     emr = EveUITreeReader(pid);
-    ra = 2514811332144;
     emr.readAll = true;
+    ra = emr.FindRootAddress();
+
+    std::chrono::duration<double> dur;
+    auto s = std::chrono::steady_clock::now();
     auto UITree = emr.ReadUITreeFromAddress(ra, 16);
+    dur = std::chrono::steady_clock::now() - s;
+    std::cout << dur.count() << std::endl;
     auto UITreePB2211 = std::make_unique<UITreeNodePB2211>();
     TreeToTreePB2211(UITree.get(), UITreePB2211.get());
     auto a = UITreePB2211->ByteSize();
@@ -199,7 +211,7 @@ extern "C" __declspec(dllexport) uint64_t ReadEveUITree(int32_t pid, uint64_t ro
   emr.ReadUITreeFromAddressFixed(root_address, depth);
   return GetUITreeFixed();
 }
-extern "C" __declspec(dllexport) uint64_t FindRootAddress(int32_t pid) {
+extern "C" __declspec(dllexport) uint64_t FindRootAddressEx(int32_t pid) {
   EveUITreeReader temr(pid);
   auto ra = temr.FindRootAddress();
   return ra;

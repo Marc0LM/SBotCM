@@ -9,6 +9,7 @@ using static SBotCore.EveUIParser.EveUI.ProbeScanner;
 using static SBotCore.EveUIParser;
 using System.Xml.Serialization;
 using YamlDotNet.Serialization;
+using WMPLib;
 
 namespace SBotLogicImpl
 {
@@ -22,6 +23,7 @@ namespace SBotLogicImpl
     }
     public abstract class BotLogicRat : BotLogic
     {
+
 
         public bool alignRepAfterCloaked = false;
         public bool fofMode = false;
@@ -61,7 +63,7 @@ namespace SBotLogicImpl
 
         public List<string> entityToAnchor = new();
 
-        public Anchor anchorType = Anchor.Followdrone;
+        public Anchor anchorType = SBotLogicImpl.Anchor.Followdrone;
 
         public int anchorSpeed = 50;
 
@@ -121,7 +123,8 @@ namespace SBotLogicImpl
 
         protected virtual UITreeNode MagicNode { get => ui.shipUI.capContainer; }
         protected virtual List<string> BadSpawns { get => badSpawns;}
-
+        protected virtual bool NeedRest { get => needRest; set => needRest = value; }
+        protected virtual bool Disabled { get => disabled; set => disabled = value; }
 
         protected int ticksSinceLastHostile = 0;
 
@@ -251,7 +254,7 @@ namespace SBotLogicImpl
         {
             if (ui.shipUI.navistate_.warp)
             {
-                logWriter.LogWrite("In warp");
+                Log("In warp");
                 CloseDM();
                 return 1;
             }
@@ -259,6 +262,7 @@ namespace SBotLogicImpl
             {
                 case 0:
                     CloseDM();
+                    input.MouseClickLeft(node, ui.root);
                     input.MouseClickRight(node, ui.root);
                     //ActivateF1Module(false);
                     state["warp"] = 1;
@@ -300,7 +304,7 @@ namespace SBotLogicImpl
         {
             if (ui.shipUI.navistate_.warp)
             {
-                logWriter.LogWrite("In warp");
+                Log("In warp");
                 CloseDM();
                 return 1;
             }
@@ -308,6 +312,7 @@ namespace SBotLogicImpl
             {
                 case 0:
                     CloseDM();
+                    input.MouseClickLeft(node, ui.root);
                     input.MouseClickRight(node, ui.root);
                     //ActivateF1Module(false);
                     state["warp"] = 1;
@@ -374,7 +379,7 @@ namespace SBotLogicImpl
             {
                 if (ui.droneView.drones_in_space_.Any(d => !d.state.Contains("Return")))
                 {
-                    logWriter.LogWrite("Recall drones");
+                    Log("Recall drones");
                     ReadyKeyClick();
                     input.KeyClick(keyRecallDrones);
                     return 1;
@@ -388,13 +393,13 @@ namespace SBotLogicImpl
         //0 as succeed
         public virtual int Launchdrones()
         {
-            if (ui.droneView.NumDronesOutside() >= numDrones || ui.droneView.NumDronesIndside() == 0)
+            if (ui.droneView.NumDronesOutside() >= numDrones || ui.droneView.NumDronesInside() == 0)
             {
                 return 0;
             }
             else
             {
-                logWriter.LogWrite("Launch drones");
+                Log("Launch drones");
                 ReadyKeyClick();
                 input.KeyClick(keyLaunchDrones);
                 return 1;
@@ -503,7 +508,7 @@ namespace SBotLogicImpl
             var wdoe = ui.overview.overviewentrys_.Where(oe => oe.ewars_.Any(ew => ewarTags.Any(ewr => ew.Contains(ewr))));//kill tackles TODO seems to be broken here: ewar state remains even actually gone
             if (wdoe.Any())
             {
-                logWriter.LogWrite("killing ewar");
+                Log("killing ewar");
                 input.KeyDown(lockKey);
                 wdoe.ToList().ForEach(oe =>
                 {
@@ -537,7 +542,7 @@ namespace SBotLogicImpl
             var wdoe = ui.overview.overviewentrys_.Where(oe => oe.ewars_.Any(ew => ew.Contains("warp")));//kill tackles TODO seems to be broken here: ewar state remains even actually gone
             if (wdoe.Any())
             {
-                logWriter.LogWrite("killing tackle");
+                Log("killing tackle");
                 input.KeyDown(lockKey);
                 wdoe.ToList().ForEach(oe =>
                 {
@@ -565,6 +570,7 @@ namespace SBotLogicImpl
             return 0;
         }
 
+        bool retreatOnLastSite = false;
         public virtual void OnRetreat(bool lowhp)
         {
             if (ui.shipUI.navistate_.warp)
@@ -584,7 +590,7 @@ namespace SBotLogicImpl
             switch (state["retreat"])
             {
                 case -1:
-                    logWriter.LogWrite($"stopped hostlile: {state["update"] == -1} lowHP: {state["update"] == -2} rest: {state["update"] == -3}");
+                    Log($"stopped hostlile: {state["update"] == -1} lowHP: {state["update"] == -2} rest: {state["update"] == -3}");
                     break;
                 case 0:
                     //ReadyKeyClick();
@@ -652,8 +658,8 @@ namespace SBotLogicImpl
             }
         }
 
-        protected bool needRest = false;
-        protected bool disabled = false;
+        private bool needRest = false;
+        private bool disabled = false;
         protected int[] droneIdleTicks = new int[15];
 
 
@@ -668,7 +674,7 @@ namespace SBotLogicImpl
         public virtual int OnBadSpawn()
         {
             //CloseDM();
-            logWriter.LogWrite("badspawn-----runing");
+            Log("badspawn-----runing");
             var ca = ui.probescannerView.anoms_.Where(a => !a.Unit.Equals("AU"));
             if (ca.Any())
             {
@@ -676,23 +682,23 @@ namespace SBotLogicImpl
                 {
                     avoidedAnoms.Add(ca.First().Id);
                 }
-                logWriter.LogWrite($"avoided {ca.First().Id}");
+                Log($"avoided {ca.First().Id}");
             }
             if (0 == WarpToAbstract(ui.standaloneBookmarkWindow.labels.First(l => l.text.Contains(safeBookmark)).node))
             {
-                logWriter.LogWrite("badspawn-----ran");
+                Log("badspawn-----ran");
                 return 0;
             }
             return 1;
         }
-        public virtual int OnNavigate()
+        public virtual int Navigate()
         {
             return 0;
         }
 
         protected double speedBeforeAnchor = 0;
         protected int noDroneTicks = 0;
-        public virtual int OnAnchor()
+        public virtual int Anchor()
         {
             var anchor = "anchor";
             if (!state.ContainsKey(anchor)) state.Add(anchor, 0);
@@ -703,27 +709,27 @@ namespace SBotLogicImpl
                     speedBeforeAnchor = ui.shipUI.navistate_.speed;
                     switch (anchorType)
                     {
-                        case Anchor.Nomove:
+                        case SBotLogicImpl.Anchor.Nomove:
                             res = 0;
                             break;
-                        case Anchor.Followdrone:
-                            if (ui.droneView.drones_in_space_.Any())
+                        case SBotLogicImpl.Anchor.Followdrone:
+                            if (ui.droneView.drones_in_space_.Any<(UITreeNode node, string name, string state)>())
                             {
                                 input.MouseClickLeft(ui.droneView.drones_in_space_[0].node, ui.root);
                                 state[anchor] = 1;
                             }
                             else
                             {
-                                logWriter.LogWrite("can't find drones to anchor, anchoring as Nomove");
+                                Log("can't find drones to anchor, anchoring as Nomove");
                                 res = 0;
                             }
                             break;
-                        case Anchor.Orbitentity:
-                            if (ui.overview.tabs_.Any(t => t.text.Equals(tabEntity) && t.selected))//if entitytab is selected
+                        case SBotLogicImpl.Anchor.Orbitentity:
+                            if (ui.overview.tabs_.Any(((UITreeNode node, string text, bool selected) t) => t.text.Equals(tabEntity) && t.selected))//if entitytab is selected
                             {
                                 if (ui.overview.overviewentrys_.Count > 0)
                                 {
-                                    var entity = ui.overview.overviewentrys_.Where(oe => oe.labels_.Any(l => entityToAnchor.Any(eo => l.Contains(eo)))).OrderBy(e => e.distance_);
+                                    var entity = ui.overview.overviewentrys_.Where<EveUI.Overview.OverviewEntry>(oe => oe.labels_.Any<string>(l => entityToAnchor.Any(eo => l.Contains(eo)))).OrderBy(e => e.distance_);
                                     if (entity.Any())
                                     {
                                         var c = entity.Count();
@@ -732,63 +738,63 @@ namespace SBotLogicImpl
                                     }
                                     else
                                     {
-                                        if (ui.droneView.drones_in_space_.Any())
+                                        if (ui.droneView.drones_in_space_.Any<(UITreeNode node, string name, string state)>())
                                         {
-                                            logWriter.LogWrite("can't find entity to orbit, anchoring on drones");
+                                            Log("can't find entity to orbit, anchoring on drones");
                                             input.MouseClickLeft(ui.droneView.drones_in_space_[0].node, ui.root);
                                             state[anchor] = 1;
                                         }
                                         else
                                         {
-                                            logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                                            Log("can't find entity or drones to anchor, anchoring as Nomove");
                                             res = 0;
                                         }
                                     }
                                 }
                                 else
                                 {
-                                    if (ui.droneView.drones_in_space_.Any())
+                                    if (ui.droneView.drones_in_space_.Any<(UITreeNode node, string name, string state)>())
                                     {
-                                        logWriter.LogWrite("NO entity to orbit, anchoring on drones");
+                                        Log("NO entity to orbit, anchoring on drones");
                                         input.MouseClickLeft(ui.droneView.drones_in_space_[0].node, ui.root);
                                         state[anchor] = 1;
                                     }
                                     else
                                     {
-                                        logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                                        Log("can't find entity or drones to anchor, anchoring as Nomove");
                                         res = 0;
                                     }
                                 }
                             }
                             else
                             {
-                                if (!ui.overview.tabs_.Any(t => t.text.Equals(tabEntity)))//check if entitytab exists
+                                if (!ui.overview.tabs_.Any(((UITreeNode node, string text, bool selected) t) => t.text.Equals(tabEntity)))//check if entitytab exists
                                 {
-                                    logWriter.LogWrite($"NO tab named '{tabEntity}', anchoring on drones");
-                                    if (ui.droneView.drones_in_space_.Any())
+                                    Log($"NO tab named '{tabEntity}', anchoring on drones");
+                                    if (ui.droneView.drones_in_space_.Any<(UITreeNode node, string name, string state)>())
                                     {
-                                        logWriter.LogWrite("NO entity to orbit, anchoring on drones");
+                                        Log("NO entity to orbit, anchoring on drones");
                                         input.MouseClickLeft(ui.droneView.drones_in_space_[0].node, ui.root);
                                         state[anchor] = 1;
                                     }
                                     else
                                     {
-                                        logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                                        Log("can't find entity or drones to anchor, anchoring as Nomove");
                                         res = 0;
                                     }
                                     break;
                                 }
                                 else
                                 {
-                                    var (node, text, selected) = ui.overview.tabs_.Where(t => t.text.Equals(tabEntity)).First();
+                                    var (node, text, selected) = ui.overview.tabs_.Where(((UITreeNode node, string text, bool selected) t) => t.text.Equals(tabEntity)).First();
                                     input.MouseClickLeft(node, ui.root);
                                 }
                             }
                             break;
-                        case Anchor.Keepatrange:
-                            logWriter.LogWrite("NOT IMPLEMENTEED YET");
-                            logWriter.LogWrite("anchoring on drones");
-                            anchorType = Anchor.Followdrone;
+                        case SBotLogicImpl.Anchor.Keepatrange:
+                            Log("NOT IMPLEMENTEED YET");
+                            Log("anchoring on drones");
+                            anchorType = SBotLogicImpl.Anchor.Followdrone;
                             break;
                             //if (ui.overview.tabs_.Any(t => t.text.Equals(tabEntity) && t.selected))//if entitytab is selected
                             //{
@@ -805,14 +811,14 @@ namespace SBotLogicImpl
                             //        }
                             //        else
                             //        {
-                            //            logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                            //            Log("can't find entity or drones to anchor, anchoring as Nomove");
                             //            state["rat"] = 0;
                             //            break;
                             //        }
                             //    }
                             //    else
                             //    {
-                            //        logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                            //        Log("can't find entity or drones to anchor, anchoring as Nomove");
                             //        state["rat"] = 0;
                             //        break;
                             //    }
@@ -821,8 +827,8 @@ namespace SBotLogicImpl
                             //{
                             //    if (!ui.overview.tabs_.Any(t => t.text.Equals(tabEntity)))//check if entitytab exists
                             //    {
-                            //        logWriter.LogWrite($"NO tab named by '{tabEntity}'");
-                            //        logWriter.LogWrite("can't find entity or drones to anchor, anchoring as Nomove");
+                            //        Log($"NO tab named by '{tabEntity}'");
+                            //        Log("can't find entity or drones to anchor, anchoring as Nomove");
                             //        state["rat"] = 0;
                             //        break;
                             //    }
@@ -833,10 +839,10 @@ namespace SBotLogicImpl
                             //    }
                             //}
                             //break;
-                        case Anchor.Orbitwreck:
-                            logWriter.LogWrite("NOT IMPLEMENTEED YET");
-                            logWriter.LogWrite("anchoring on drones");
-                            anchorType = Anchor.Followdrone;
+                        case SBotLogicImpl.Anchor.Orbitwreck:
+                            Log("NOT IMPLEMENTEED YET");
+                            Log("anchoring on drones");
+                            anchorType = SBotLogicImpl.Anchor.Followdrone;
                             break;
                     }
                     break;
@@ -871,6 +877,7 @@ namespace SBotLogicImpl
         }
 
         protected int noNPCTicks = 0;
+        protected bool siteFinished = false;
         void OnRat()
         {
             switch (state["rat"])
@@ -886,18 +893,18 @@ namespace SBotLogicImpl
                     {
                         case -1:
                             state["rat"] = 102;
-                            logWriter.LogWrite("No Boss");
+                            Log("No Boss");
                             input.MouseClickLeft(ui.overview.tabs_.Where(t => t.text.Contains(tabPve)).First().node, ui.root);
                             break;
                         case -2:
                             state["rat"] = 102;
                             lootBoss = false;
-                            logWriter.LogWrite("Not Enough Cargo Space!");
+                            Log("Not Enough Cargo Space!");
                             input.MouseClickLeft(ui.overview.tabs_.Where(t => t.text.Contains(tabPve)).First().node, ui.root);
                             break;
                         case 0:
                             state["rat"] = 102;
-                            logWriter.LogWrite("Looted Boss");
+                            Log("Looted Boss");
                             input.MouseClickLeft(ui.overview.tabs_.Where(t => t.text.Contains(tabPve)).First().node, ui.root);
                             break;
                     }
@@ -932,31 +939,29 @@ namespace SBotLogicImpl
                                 }
                             }
                         }
-                        if (ui.overview.NumNPC() < 1 || 
-                            ui.overview.overviewentrys_.Where(ove=> !ove.labels_.Any(l => l.Contains('[')))
-                            .Select(oe => oe.labels_.Where(l => l.Contains("km")))
-                            .All(l => l.Any(ll => float.Parse(ll.Split(" ")[0].Replace(",", "")) > 150)))
+                        if (ui.overview.NumNPC() < 1 ||
+                            ui.overview.overviewentrys_.Where(ove => !ove.labels_.Any(l => l.Contains('[')))
+                            .All(ove => ove.distance_ > 150_000))
                         {
                             noNPCTicks++;
                             if (noNPCTicks > 1)
                             {
                                 if (!ui.probescannerView.anoms_.Any(a => a.Unit.Contains('m')))//Recall drones if anom done 
                                 {
+
                                     if (0 == Recalldrones())
                                     {
-
-                                        //if (marauderMode)
+                                        siteFinished = !retreatOnLastSite;
+                                        ActivateF1Module(false);
+                                        if (marauderMode)
                                         {
-                                            ActivateF1Module(false);
-                                            if (marauderMode)
+                                            var bastion = ui.shipUI.active_slots_.FirstOrDefault(s => s.text.Equals("F1"));
+                                            if (bastion.busy || bastion == default)
                                             {
-                                                var bastion = ui.shipUI.active_slots_.FirstOrDefault(s => s.text.Equals("F1"));
-                                                if (bastion.busy || bastion == default)
-                                                {
-                                                    break;
-                                                }
+                                                break;
                                             }
                                         }
+
                                         if (lootBoss)
                                         {
                                             state["rat"] = 101;
@@ -987,7 +992,7 @@ namespace SBotLogicImpl
                             {
                                 if (ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => BadSpawns.Any(bs => l.Contains(bs)))))//dread spawn warp to safe and avoid this anom
                                 {
-                                    logWriter.LogWrite("dreadspawn-----run");
+                                    Log("dreadspawn-----run");
                                     Recalldrones();
                                     state["rat"] = -1;
                                     goto case -1;
@@ -1000,10 +1005,10 @@ namespace SBotLogicImpl
                             if (fofMode)
                             {
                                 if (ui.overview.overviewentrys_.Where(ove => !ove.labels_.Any(l => l.Contains('[')))
-                                                                .Select(oe => oe.labels_.Where(l => l.Contains("km")))
-                                                                .Any(l => l.Any(ll => float.Parse(ll.Split(" ")[0].Replace(",", "")) < (useTurrentsDistanceM / 1000))))
+                                                                .Any(ove => ove.distance_ < useTurrentsDistanceM))
                                     ActivateTurrents(true);
                             }
+
                             ActivateAlwaysOnModules(true);
 
                             if (0 != ClearTackle())
@@ -1015,15 +1020,6 @@ namespace SBotLogicImpl
                                 break;
                             }
 
-                            if (useTurrents && !useDronesAsMainDPS)
-                            {
-                                if (ui.activeShipCargo.cargo_percentage_ < 0.01)
-                                {
-                                    logWriter.LogWrite("Not Enough Ammo");
-                                    disabled = true;
-                                    break;
-                                }
-                            }
 
                             List<EveUI.Overview.OverviewEntry> lock_candidates = new();
 
@@ -1078,7 +1074,10 @@ namespace SBotLogicImpl
                                         }
                                         else
                                         {
-                                            input.KeyClick(keyDronesEngage);
+                                            if (!ui.overview.active_target_.IsPlayer())
+                                            {
+                                                input.KeyClick(keyDronesEngage);
+                                            }
                                         }
                                     }
                                 }
@@ -1133,7 +1132,7 @@ namespace SBotLogicImpl
                                     }
                                 }
                             }
-                            if (ui.shipUI.navistate_.speed < 10 && anchorType != Anchor.Nomove && anchorType != Anchor.Keepatrange)
+                            if (ui.shipUI.navistate_.speed < 10 && anchorType != SBotLogicImpl.Anchor.Nomove && anchorType != SBotLogicImpl.Anchor.Keepatrange)
                             {
                                 state["rat"] = 2;
                             }
@@ -1141,13 +1140,14 @@ namespace SBotLogicImpl
                     }
                     break;
                 case 1:
-                    if (OnNavigate() == 0)
+                    if (Navigate() == 0)
                     {
                         state["rat"] = 2;
+                        retreatOnLastSite = false;
                     }
                     break;
                 case 2:
-                    if (OnAnchor() == 0)
+                    if (Anchor() == 0)
                     {
                         state["rat"] = 0;
                     }
@@ -1158,7 +1158,8 @@ namespace SBotLogicImpl
         protected bool isCloaky = false;
         protected string lastMessage = "";
         protected bool rat_till_next_day = false;
-        public override void OnUpdate()
+        int disableTicks = 0;
+        public override void UpdateCB()
         {
             if (rat_till_next_day)
             {
@@ -1167,13 +1168,13 @@ namespace SBotLogicImpl
                     rat_till_next_day = false;
                 }
             }
-            logWriter.LogWrite(DateTime.Now.ToString());
-            logWriter.LogWrite(GetBotSummary().ToString());
+            Log(DateTime.Now.ToString());
+            Log(Summary().ToString());
             try
             {
                 if (ui == null)
                 {
-                    logWriter.LogWrite("No UI is passed!");
+                    Log("No UI is passed!");
                 }
                 else
                 {
@@ -1206,20 +1207,30 @@ namespace SBotLogicImpl
                     if (!ui.standaloneBookmarkWindow.labels.Any(l => l.text.Contains(safeBookmark))) //no BM
                     {
 
-                        logWriter.LogWrite("No safe BM");
+                        Log("No safe BM");
                         return;
                     }
                     if (!ui.standaloneBookmarkWindow.labels.Any(l => l.text.Contains(repBookmark))) //no BM
                     {
 
-                        logWriter.LogWrite("No rep BM");
+                        Log("No rep BM");
                         return;
                     }
-                    if (!ui.shipUI.active_slots_.Any())
+
+                    if (IsDisabled())
                     {
-                        disabled = true;
+                        disableTicks++;
+                        if (disableTicks > 5)
+                        {
+                            Disabled = true;
+                        }
                     }
-                    ui.localChatwindowStack.members_.ForEach(m => logWriter.LogWrite(m.name));
+                    else
+                    {
+                        disableTicks = 0;
+                    }
+
+                    ui.localChatwindowStack.members_.ForEach(m => Log(m.name + "-" + m.tag));
                     switch (state["update"])
                     {
                         case 0:
@@ -1227,26 +1238,28 @@ namespace SBotLogicImpl
                             if (ui.localChatwindowStack.NumHostile(hostileTags) > 0)
                             {
                                 state["update"] = -1;
+                                retreatOnLastSite = true;
                                 goto case -1;
                             }
 
                             if ((ui.shipUI.hp_.shield < lowHPShield || ui.shipUI.hp_.armor < lowHPArmor) && ui.shipUI.hp_.structure != 0)// low hp 
                             {
-                                logWriter.LogWrite($"Low HP! {ui.shipUI.hp_}");
+                                Log($"Low HP! {ui.shipUI.hp_}");
                                 state["update"] = -2;
+                                retreatOnLastSite = true;
                                 goto case -2;
                             }
 
-                            if (needRest)
+                            if (NeedRest)
                             {
-                                logWriter.LogWrite("time to rest!");
+                                Log("time to rest!");
                                 state["update"] = -3;
                                 goto case -3;
                             }
 
-                            if (disabled)
+                            if (Disabled)
                             {
-                                logWriter.LogWrite("Disabled!");
+                                Log("Disabled!");
                                 state["update"] = -4;
                                 goto case -4;
                             }
@@ -1342,7 +1355,7 @@ namespace SBotLogicImpl
                             }
                             break;
                         case -201:
-                            if (ui.shipUI.hp_.shield >= 80 && ui.shipUI.hp_.armor >= 80 && ui.shipUI.hp_.structure == 100)
+                            if (ui.shipUI.hp_.shield >= lowHPShield && ui.shipUI.hp_.armor >= lowHPArmor && ui.shipUI.hp_.structure == 100)
                             {
                                 state = state.ToDictionary(p => p.Key, p => 0);
                             }
@@ -1389,7 +1402,7 @@ namespace SBotLogicImpl
                                 {
                                     if (ui.overview.overviewentrys_.Any(oe => oe.distance_ < 500_000 && oe.labels_.Any(l => l.Contains("Warp Disruptor"))))
                                     {
-                                        logWriter.LogWrite("Mobile Warp Disruptor in range!");
+                                        Log("Mobile Warp Disruptor in range!");
                                         ticksSinceLastHostile = 0;
                                     }
 
@@ -1402,13 +1415,43 @@ namespace SBotLogicImpl
                         essWarningPlayer.controls.play();
                     }
                 }
-                logWriter.LogWrite(GetBotSummary());
+                Log(Summary());
                 Thread.Sleep(tickIntervalMS);
             }
-            catch (Exception ex) { logWriter.LogWrite(ex.ToString()); }
+            catch (Exception ex) { Log(ex.ToString()); }
         }
 
-        public override string GetBotSummary() => ui == null ? "ui==null" : ui.shipUI.hp_ + " / " +
+        private bool IsDisabled()
+        {
+            var res = false;
+            if (!ui.shipUI.active_slots_.Any())
+            {
+                Log("Not any modules");
+                res = true;
+            }
+            if (useDronesAsMainDPS)// not enough drones
+            {
+                if (ui.droneView.NumDronesInside() + ui.droneView.NumDronesOutside() < numDrones)
+                {
+                    Log($"not enough drones!{ui.droneView.NumDronesInside()} {ui.droneView.NumDronesOutside()}");
+                    res = true;
+                }
+            }
+            else
+            {
+                if (useTurrents)
+                {
+                    if (ui.activeShipCargo.cargo_percentage_ < 0.01)
+                    {
+                        Log("Not Enough Ammo");
+                        res = true;
+                    }
+                }
+            }
+            return res;
+        }
+
+        public override string Summary() => ui == null ? "ui==null" : ui.shipUI.hp_ + " / " +
                             state.Select(s=>s.Key+":"+s.Value).Aggregate((a,b)=>a+" "+b) + " / " +
                             ticksSinceLastHostile + " / " +
                             camperTicks + " / " +
@@ -1420,8 +1463,10 @@ namespace SBotLogicImpl
 
         public override bool PreFlightCheck(EveUI ui)
         {
+
             //load sounds
-            base.PreFlightCheck(ui);
+
+
 
             try
             {
@@ -1461,7 +1506,7 @@ namespace SBotLogicImpl
             content += $"\nCurrent shiphp is? {ui.shipUI.hp_}";
             content += $"\nNumber of modules? {ui.shipUI.active_slots_.Count}";
             content += $"\nNumber of anoms? {ui.probescannerView.anoms_.Count}";
-            content += $"\nNumber of drones? {ui.droneView.NumDronesIndside()} and {ui.droneView.NumDronesOutside()}";
+            content += $"\nNumber of drones? {ui.droneView.NumDronesInside()} and {ui.droneView.NumDronesOutside()}";
             content += $"\npve tab({tabPve}) is good? {ui.overview.tabs_.Any(t => t.text.Contains(tabPve))}";
             content += $"\nwreck tab({tabWreck}) is good? {ui.overview.tabs_.Any(t => t.text.Contains(tabWreck))}";
             content += $"\nentity tab({tabEntity}) is good? {ui.overview.tabs_.Any(t => t.text.Contains(tabEntity))}";
@@ -1469,7 +1514,7 @@ namespace SBotLogicImpl
             {
                 return false;
             }
-            return true;
+            return base.PreFlightCheck(ui); 
         }
 
     }

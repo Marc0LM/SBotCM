@@ -73,8 +73,9 @@ class EveUITreeReader {
   }
 
  public:
-  int maxSegSize = 100;
+  int maxSegSize = 4;
   bool readAll = false;
+
   Address FindRootAddress() {
     // throw 9;
     auto memory_regions = ReadCommittedMemoryRegionsFromProcess(process_ID_);
@@ -83,10 +84,12 @@ class EveUITreeReader {
     Address root = 0;
     // auto GRALog = std::ofstream("gra" + std::to_string(process_ID_) + ".txt");
     for (auto urca : ui_root_candidates_addresses) {
-      auto node = ReadUITreeFromAddress(urca, 16);
+      std::shared_ptr<UITreeNode> node = ReadUITreeFromAddress(urca, 16);
+
       if (!node) continue;
-      // std::cout << urca << " " << node->EnumerateSelfAndDescendants().size() << std::endl;
-      // GRALog << urca << " " << node->EnumerateSelfAndDescendants().size() << std::endl;
+      // std::cout << node->EnumerateSelfAndDescendants().size() << std::endl;
+      //  std::cout << urca << " " << node->EnumerateSelfAndDescendants().size() << std::endl;
+      //  GRALog << urca << " " << node->EnumerateSelfAndDescendants().size() << std::endl;
       if (node->EnumerateSelfAndDescendants().size() >= maxnodes) {
         root = urca;
         maxnodes = node->EnumerateSelfAndDescendants().size();
@@ -204,7 +207,7 @@ class EveUITreeReader {
       auto keyString = ReadPythonStringValueMaxLength4000(dictionaryEntry.key);
 
       if (!readAll && dict_entries_of_interest_keys_.find(keyString) == dict_entries_of_interest_keys_.end()) {
-        otherDictEntriesKeys.insert(keyString);
+        // otherDictEntriesKeys.insert(keyString);
         continue;
       }
       auto t = GetDictEntryValueRepresentation(dictionaryEntry.value);

@@ -15,8 +15,8 @@ namespace SBotCore
         readonly IDictionary<string, int> key_codes_ = new Dictionary<string, int>();
 
         static Random random = new();
-        static int msduringClick = 80;
-        static int randdurclick = 20;
+        static int msduringClick = 40;
+        static int randdurclick = 10;
         static int randx = 5;
         static int randy = 5;
         static int biasy = 1;
@@ -44,6 +44,7 @@ namespace SBotCore
                 SendMessage(main_window_handle_, (int)KeyboardInput.WM_KEYDOWN, key_codes_[k], 0);
                 Thread.Sleep(msduringClick);
                 SendMessage(main_window_handle_, (int)KeyboardInput.WM_KEYUP, key_codes_[k], 0);
+                Thread.Sleep(msduringClick + random.Next() % randdurclick);
             }
         }
 
@@ -126,6 +127,7 @@ namespace SBotCore
             SendMessage(main_window_handle_, (int)MouseInput.WM_LBUTTONDOWN, 0, p);
             Thread.Sleep(msduringClick + random.Next() % randdurclick);
             SendMessage(main_window_handle_, (int)MouseInput.WM_LBUTTONUP, 0, p);
+            Thread.Sleep(msduringClick + random.Next() % randdurclick);
         }
         private void MouseMsgRBC(int dx, int dy)
         {
@@ -134,11 +136,13 @@ namespace SBotCore
             SendMessage(main_window_handle_, (int)MouseInput.WM_RBUTTONDOWN, 0, p);
             Thread.Sleep(msduringClick + random.Next() % randdurclick);
             SendMessage(main_window_handle_, (int)MouseInput.WM_RBUTTONUP, 0, p);
+            Thread.Sleep(msduringClick + random.Next() % randdurclick);
         }
         private void MouseMsgMove(int dx, int dy)
         {
             int p = dy << 16 | dx;
             SendMessage(main_window_handle_, (int)MouseInput.WM_MOUSEMOVE, 0, p);
+            Thread.Sleep(msduringClick + random.Next() % randdurclick);
         }
 
 

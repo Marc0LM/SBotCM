@@ -11,9 +11,9 @@ namespace SBotLogicImpl
 {
     public class BotLogicFC : BotLogic
     {
-        public override string GetBotSummary()=> "";
+        public override string Summary()=> "";
 
-        public override void OnUpdate()
+        public override void UpdateCB()
         {
             string m_name_ = ui.otherChatwindowStack.members_.FirstOrDefault(m => m.tag == m.name).name;
             if (Singleton.Instance.members.ContainsKey(m_name_))

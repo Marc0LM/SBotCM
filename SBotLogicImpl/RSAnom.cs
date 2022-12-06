@@ -19,7 +19,7 @@ namespace SBotLogicImpl
     {
 
         Anom? nextAnom;
-        public override int OnNavigate()
+        public override int Navigate()
         {
             string navigate = "navigate";
             if (!state.ContainsKey(navigate)) state.Add(navigate, 0);
@@ -30,30 +30,16 @@ namespace SBotLogicImpl
                     if ((int.Parse(DateTime.Now.ToString("HHmm")) > int.Parse(timeToRest) && !rat_till_next_day) ||
                             (int.Parse(DateTime.Now.ToString("HHmm")) > 1820 && int.Parse(DateTime.Now.ToString("HHmm")) < 1900))
                     {
-                        needRest = true;
+                        NeedRest = true;
                         res = 0;
-                    }
-                    if (ui.droneView.NumDronesIndside() < numDrones && useDronesAsMainDPS)// not enough drones
-                    {
-                        noDroneTicks++;
-                        if (noDroneTicks > 3)
-                        {
-                            logWriter.LogWrite($"not enough drones!{ui.droneView.NumDronesIndside()}");
-                            disabled = true;
-                            res = 0;
-                        }
-                    }
-                    else
-                    {
-                        noDroneTicks = 0;
                     }
                     var badanoms = occupiedAnoms.Concat(avoidedAnoms).ToList();//.Concat(bad_anoms_shared_.Keys.ToList());
                     string badanomss = "";
                     badanoms.ToList().ForEach(badanom => badanomss += (" " + badanom));
-                    logWriter.LogWrite("bad anoms " + badanomss);
+                    Log("bad anoms " + badanomss);
                     var nextAnomAndDistance = anomsToRun.Select(pa =>
                     {
-                        logWriter.LogWrite(pa);
+                        Log(pa);
                         IEnumerable<Anom> candidates = anomOrder switch
                         {
                             AnomOrder.IDF => ui.probescannerView.anoms_.OrderBy(a => a.Id),
@@ -68,7 +54,7 @@ namespace SBotLogicImpl
                     }).FirstOrDefault(naad => naad.a != null);
                     if (nextAnomAndDistance.a == null)
                     {
-                        logWriter.LogWrite("No Anoms to Run");
+                        Log("No Anoms to Run");
                         if (clearOccupiedAnomsIfNoRunnableAnoms)
                         {
                             occupiedAnoms.Clear();
@@ -83,7 +69,7 @@ namespace SBotLogicImpl
                         //if (!ignore_anoms_without_telecom_ && !ignore_anoms_with_telecom_)  check telecom
                         if (true)
                         {
-                            logWriter.LogWrite(nextAnom.Id + " " + nextAnom.Name + " " + nextAnom.DistanceByKm);
+                            Log(nextAnom.Id + " " + nextAnom.Name + " " + nextAnom.DistanceByKm);
                             var warpAction = WarpToAbstract;
                             if (tWarpToAnomDistanceKM.Equals("10") ||
                                 tWarpToAnomDistanceKM.Equals("20") ||
@@ -104,8 +90,11 @@ namespace SBotLogicImpl
                             }
                             if (0 == warpAction(nextAnom.Node) || (nextAnom.DistanceByKm < 150 && !ui.shipUI.navistate_.warp))//fix game ui bug: still shows warp when at 0 of anom
                             {
-                                state["warp"] = 0;
-                                state[navigate] = 1;
+                                if (ui.overview.tabs_.Any(t => t.text.Contains(tabPve) && t.selected))
+                                {
+                                    state["warp"] = 0;
+                                    state[navigate] = 1;
+                                }
                                 //state["rat"] = 2;
                             }
                         }

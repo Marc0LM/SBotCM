@@ -13,13 +13,13 @@ namespace SBotLogicImpl
         public bool do_watch_local_ = true;
         public bool do_watch_ov_ = false;
         bool need_alert_;
-        public override string GetBotSummary()
+        public override string Summary()
         {
             return need_alert_?"Hostile":"Safe";
         }
         //public List<string> hostile_tags_ = new() { "ExampleTag" };
 
-        public override void OnUpdate()
+        public override void UpdateCB()
         {
             need_alert_ = false;
             if(do_watch_local_)

@@ -7,4 +7,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Reference Include="Interop.WMPLib">
+      <HintPath>..\SBotLogicImpl\obj\x64\Release\net6.0-windows\Interop.WMPLib.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

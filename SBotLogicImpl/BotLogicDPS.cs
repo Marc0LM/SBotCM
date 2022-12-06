@@ -11,10 +11,10 @@ namespace SBotLogicImpl
 {
     public class BotLogicDPS : BotLogic
     {
-        public override string GetBotSummary() => "";
+        public override string Summary() => "";
         string target_name_="";
         string last_target_name_="";
-        public override void OnUpdate()
+        public override void UpdateCB()
         {
             //string m_name_ = ui.other_chatwindow_stack_.members_.FirstOrDefault(m => m.tag == m.name).name;
             //if(Singleton.Instance.members.ContainsKey(m_name_))

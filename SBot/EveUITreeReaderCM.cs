@@ -25,6 +25,8 @@ namespace SBotCore
         MemoryMappedFile read_uitree_stats_;
         Semaphore sr_, sw_;
         ulong ra_ = 0;
+        [DllImport("version.dll")]
+        static extern ulong FindRootAddressEx(Int32 pid);
         public ulong FindRootAddress(int pid)
         {
             if (File.Exists("prerelease"))
@@ -64,12 +66,16 @@ namespace SBotCore
             var statsreader = read_uitree_stats_.CreateViewAccessor();
             Stopwatch stopwatchRA = new();
             stopwatchRA.Start();
+            //var raTask=Task.Run(() => ra_ = FindRootAddressEx(pid));
+            //raTask.Wait(60000);
+            //statsreader.Write(0, ra_);
             while (ra_ == 0)
             {
                 ra_ = statsreader.ReadUInt64(0);
                 Thread.Sleep(100);
-                if (stopwatchRA.ElapsedMilliseconds > 30_0000) break;
+                if (stopwatchRA.ElapsedMilliseconds > 300_000) break;
             }
+            
             return ra_;
         }
 
@@ -77,13 +83,15 @@ namespace SBotCore
         ulong readMode = (ulong)4;
         public UITreeNode ReadUITree(int depth)
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
             var statsreader = read_uitree_stats_.CreateViewAccessor();
-            
+
+
             Console.WriteLine(readMode);
             statsreader.Write(32, readMode);
             WaitHandle.SignalAndWait(sw_, sr_);
 
-            Stopwatch stopwatch = Stopwatch.StartNew();
+
 
             var ra = statsreader.ReadUInt64(0);
             var byte_count = statsreader.ReadUInt64(8);
@@ -93,44 +101,48 @@ namespace SBotCore
 
             Console.WriteLine(dur);
             Console.WriteLine(byte_count);
-            UITreeNode res = new();
-            switch (readMode)
+            UITreeNode res = null;
+            var readTask = Task.Run(() =>
             {
-                case 3:
-                    {
-                        byte[] buf_ = new byte[byte_count];
-                        statsreader.ReadArray(1024, buf_, 0, (int)byte_count);
+                switch (readMode)
+                {
+                    case 3:
+                        {
+                            byte[] buf_ = new byte[byte_count];
+                            statsreader.ReadArray(1024, buf_, 0, (int)byte_count);
 
-                        res = FromUITreeNodePB(UITreeNodePB.Parser.ParseFrom(buf_));
-                    }
-                    break;
-                case 4:
-                    {
-                        byte[] buf_ = new byte[byte_count];
-                        var bytesRead = UIntPtr.Zero;
-                        ReadProcessMemory(proc_handle_, rta, buf_, (UIntPtr)byte_count, ref bytesRead);
-                        if (bytesRead.ToUInt64() == 0)
-                        {
-                            return null;
+                            res = FromUITreeNodePB(UITreeNodePB.Parser.ParseFrom(buf_));
                         }
-                        res = FromUITreeNodePB(UITreeNodePB.Parser.ParseFrom(buf_));
-                    }
-                    break;
-                case 5:
-                    {
-                        byte[] buf_ = new byte[byte_count];
-                        var bytesRead = UIntPtr.Zero;
-                        ReadProcessMemory(proc_handle_, rta, buf_, (UIntPtr)byte_count, ref bytesRead);
-                        if (bytesRead.ToUInt64() == 0)
+                        break;
+                    case 4:
                         {
-                            return null;
+                            byte[] buf_ = new byte[byte_count];
+                            var bytesRead = UIntPtr.Zero;
+                            ReadProcessMemory(proc_handle_, rta, buf_, (UIntPtr)byte_count, ref bytesRead);
+                            if (bytesRead.ToUInt64() == 0)
+                            {
+                                res = null;
+                            }
+                            res = FromUITreeNodePB(UITreeNodePB.Parser.ParseFrom(buf_));
                         }
-                        res = FromUITreeNodePB2211(UITreeNodePB2211.Parser.ParseFrom(buf_));
-                    }
-                    break;
-                default:
-                    break;
-            }
+                        break;
+                    case 5:
+                        {
+                            byte[] buf_ = new byte[byte_count];
+                            var bytesRead = UIntPtr.Zero;
+                            ReadProcessMemory(proc_handle_, rta, buf_, (UIntPtr)byte_count, ref bytesRead);
+                            if (bytesRead.ToUInt64() == 0)
+                            {
+                                res = null;
+                            }
+                            res = FromUITreeNodePB2211(UITreeNodePB2211.Parser.ParseFrom(buf_));
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            });
+            readTask.Wait(5000);
             stopwatch.Stop();
             stat_.dur_read = (ulong)(dur * 1000);
             stat_.dur_trans = (ulong)stopwatch.ElapsedMilliseconds;

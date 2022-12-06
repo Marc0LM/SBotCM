@@ -281,7 +281,7 @@ namespace SBotCore
                     return num_drones_in_local_space_;
                 }
 
-                public int NumDronesIndside()
+                public int NumDronesInside()
                 {
                     if (!Exists()) return 0;
                     return num_drones_in_bay_;
@@ -339,6 +339,14 @@ namespace SBotCore
                     public List<string> ewars_;
                     public List<string> indicators_;
                     public bool targeting_;
+                    public bool IsPlayer()
+                    {
+                        return IsShip() && labels_.Any(l => l.Contains('['));
+                    }
+                    public bool IsShip()
+                    {
+                        return labels_.Any(l => long.TryParse(l.Replace(",",""), out long r));
+                    }
                 }
                 public List<OverviewEntry> overviewentrys_;
                 public List<OverviewEntry> targeted_;
@@ -396,7 +404,7 @@ namespace SBotCore
                               }).ToList();
                             targeted_ = overviewentrys_.Where(ove => ove.indicators_.Any(i => i.Contains("argeted"))).ToList();
                             targeting_ = overviewentrys_.Where(ove => ove.targeting_).ToList();
-                            not_targeted_ = overviewentrys_.Where(ove => !ove.labels_.Any(l => l.Contains('[')) && !ove.targeting_ && !ove.indicators_.Any(i => i.Contains("argeted"))).ToList();
+                            not_targeted_ = overviewentrys_.Where(ove => !ove.IsPlayer() && !ove.targeting_ && !ove.indicators_.Any(i => i.Contains("argeted"))).ToList();
                             active_target_ = targeted_.FirstOrDefault(t => t.indicators_.Any(i => i.Contains("ActiveTarget")));
 
                         }
@@ -407,7 +415,7 @@ namespace SBotCore
                 {
                     if (Exists())
                     {
-                        return overviewentrys_.Count(ove => ove.labels_.Any(l => long.TryParse(l, out long r))) - NumPlayer();
+                        return overviewentrys_.Count(ove => ove.IsShip()&&!ove.IsPlayer());
                     }
                     else
                     {
@@ -418,7 +426,7 @@ namespace SBotCore
                 {
                     if (Exists())
                     {
-                        return overviewentrys_.Count(ove => ove.labels_.Any(l => long.TryParse(l, out long r)) && ove.labels_.Any(ol => ol.Contains('[')) && ove.distance_ != -1);
+                        return overviewentrys_.Count(ove => ove.IsPlayer());
                     }
                     else
                     {
@@ -688,7 +696,7 @@ namespace SBotCore
                         var cargo_hold_text = ListNodesWithPropertyValue(node_, "_setText", (string s) => s?.Contains("m³") ?? false).FirstOrDefault();
                         if (cargo_hold_text != null)
                         {
-                            var d = cargo_hold_text.dict_entries_of_interest.Value<string>("_setText").Split(" ")[0].Split("/");
+                            var d = cargo_hold_text.dict_entries_of_interest.Value<string>("_setText").Split("m")[0].Split("/");
                             if (d[0].Contains(')'))
                             {
                                 d[0] = d[0].Split(')')[1];

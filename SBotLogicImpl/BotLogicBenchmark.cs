@@ -14,7 +14,7 @@ namespace SBotLogicImpl
         long durSum = 0;
         int iter = 0;
         long start;
-        public override string GetBotSummary()
+        public override string Summary()
         {
             if (iter == 0)
             {
@@ -24,7 +24,7 @@ namespace SBotLogicImpl
             return (durSum/iter).ToString();
         }
 
-        public override void OnUpdate()
+        public override void UpdateCB()
         {
             sw.Start();
             iter++;

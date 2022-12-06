@@ -10,14 +10,14 @@ namespace SBotLogicImpl
     public class BotLogic0Jump : BotLogic
     {
 
-        public override string GetBotSummary()
+        public override string Summary()
         {
             return (is_travelling_ ? "travelling" : "idle");
         }
 
         bool is_travelling_ = false;
         int docking_state_ = 0;
-        public override void OnUpdate()
+        public override void UpdateCB()
         {
             is_travelling_ = ui.infoPanelRoute.next_waypoint_marker_ != null;
             if (ui.infoPanelRoute.next_system_ != null)

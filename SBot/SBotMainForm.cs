@@ -25,7 +25,7 @@ namespace SBot
         {
             public Process process;
             public IEveUITreeReader EUITR;
-            public BotLogic botLogic;
+            public IBotLogic botLogic;
 
             public Task task;
             public bool botRun;
@@ -173,7 +173,7 @@ namespace SBot
                 lvi.SubItems.Add(bot.botRun.ToString());
                 if (bot.botRun)
                 {
-                    lvi.SubItems.Add(bot.botLogic.GetBotSummary());
+                    lvi.SubItems.Add(bot.botLogic.Summary());
                 }
                 else
                 {
@@ -219,7 +219,7 @@ namespace SBot
                 EveUI ui;
                 try
                 {
-                    b.botLogic = BotLogic.FromConfigFile(config,
+                    b.botLogic = IBotLogic.FromConfigFile(config,
                         b.process.MainWindowHandle.ToInt32(),
                         new LogWriter(DateTime.Now.ToString("yyyyMMdd HHmm ") + client),
                         true,
@@ -265,7 +265,7 @@ namespace SBot
                     if (b.botLogic.NeedLogOff())
                     {
                         b.process.Kill();
-                        b.botLogic.logWriter.LogWrite("Stopped and logged off");
+                        b.botLogic.Log("Stopped and logged off");
                         break;
                     }
                     if (b.process.HasExited)
@@ -282,12 +282,12 @@ namespace SBot
                     }
                     catch (Exception ex)
                     {
-                        b.botLogic.logWriter.LogWrite("Critical:" + ex.ToString());
+                        b.botLogic.Log("Critical:" + ex.ToString());
                     }
 
                 }
                 b.botRun = false;
-                b.botLogic.logWriter.LogWrite("Stopped");
+                b.botLogic.Log("Stopped");
             });
         }
 
@@ -313,7 +313,7 @@ namespace SBot
                         {
                             long ms_since_last_update = (DateTime.Now.Ticks - bot.lastTickTime) / 10_000;
                             botsLVI[bot].SubItems[2].Text =
-                            bot.botLogic.GetBotSummary() + " / " +
+                            bot.botLogic.Summary() + " / " +
                             ms_since_last_update + " / " +
                             bot.EUITR.Stat().ToString();
                         }
@@ -427,7 +427,7 @@ namespace SBot
         {
             try
             {
-                BotLogic.DumpAllBots();
+                IBotLogic.DumpAllBots();
                 MessageBox.Show("Templates generated in folder botTemplates");
             }
             catch(Exception ex)

@@ -1,9 +1,11 @@
-﻿using System;
+﻿using SBotCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Threading.Tasks;
+using WMPLib;
 using static SBotCore.EveUIParser.EveUI.ProbeScanner;
 
 namespace SBotLogicImpl
@@ -15,39 +17,62 @@ namespace SBotLogicImpl
         List<string> goodSpawnBMs = new();
         public string BMPrefix = "0f";
         public List<string> goodSpawnNames = new();
+        public bool stayBesideGoodSpawns = false;
         protected override List<string> BadSpawns { get => base.BadSpawns.Concat(goodSpawnNames).ToList();}
-        public override string GetBotSummary() => (goodSpawnBMs.Any() ? goodSpawnBMs.Aggregate((b1, b2) => b1 + " " + b2) :
+        public override string Summary() => (goodSpawnBMs.Any() ? goodSpawnBMs.Aggregate((b1, b2) => b1 + " " + b2) :
             ui == null ? "ui==null" : ui.shipUI.hp_ + " / " +
                             state.Select(s => s.Key + ":" + s.Value).Aggregate((a, b) => a + " " + b) + " / " +
                             ticksSinceLastHostile + " / " +
                             camperTicks + " / " +
                             tick)+"/"+(!BMs.Any()?"no BMs" : BMs.Select(bm => bm.Key.Split('<')[0] +"-"+bm.Value).Aggregate((a,b)=>a+"|"+b));
+        
+        Task? officerWarningPlayTask;
         public override int OnBadSpawn()
         {
-            essWarningPlayer.controls.play();
+            if (stayBesideGoodSpawns &&
+                goodSpawnNames.Any(bs => ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => l.Contains(bs)))))
+            {
+                while (true)
+                {
+                    officerWarningPlayer.controls.play();
+                    Thread.Sleep(1000);
+                }
+            }
+            //if (officerWarningPlayTask == null)
+            //{
+            //    officerWarningPlayTask = Task.Run(() =>
+            //    {
+            //        officerWarningPlayer.settings.autoStart = false;
+            //        officerWarningPlayer.settings.setMode("loop", true);
+            //        officerWarningPlayer.URL = "w_officer.mp3";
+
+            //    });
+            //}
+            
+            officerWarningPlayer.controls.play();
             //CloseDM();
-            logWriter.LogWrite("goodSpawn-----runing");
+            Log("goodSpawn-----runing");
             string? goodSpawnName = BadSpawns.FirstOrDefault(bs => ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => l.Contains(bs))));
             if (goodSpawnName!=null)
             {
-                logWriter.LogWrite($"goodSpawn: {goodSpawnName}-{lastBM}");
+                Log($"goodSpawn: {goodSpawnName}-{lastBM}");
                 if (!goodSpawnBMs.Contains(goodSpawnName + "-" + lastBM.Split('<')[0]))
                 {
                     goodSpawnBMs.Add(goodSpawnName + "-" + lastBM.Split('<')[0]);
                     if (BMs.ContainsKey(lastBM))
                     {
-                        BMs[lastBM] += 900;//almost 30min
+                        BMs[lastBM] = tick + 900;//almost 30min
                     }
                 }
             }
             if (0 == WarpToAbstract(ui.standaloneBookmarkWindow.labels.First(l => l.text.Contains(safeBookmark)).node))
             {
-                logWriter.LogWrite("goodSpawn-----ran");
+                Log("goodSpawn-----ran");
                 return 0;
             }
             return 1;
         }
-        public override int OnNavigate()
+        public override int Navigate()
         {
             string navigate = "navigate";
             if (!state.ContainsKey(navigate)) state.Add(navigate, 0);
@@ -61,7 +86,6 @@ namespace SBotLogicImpl
             });
             if (!BMs.Any()) return 0;
             BMs = BMs.OrderBy(p => p.Value).ToDictionary(p => p.Key, p => p.Value);
-
             int res = 1;
             switch (state[navigate])
             {
@@ -69,30 +93,29 @@ namespace SBotLogicImpl
                     if ((int.Parse(DateTime.Now.ToString("HHmm")) > int.Parse(timeToRest) && !rat_till_next_day) ||
                             (int.Parse(DateTime.Now.ToString("HHmm")) > 1850 && int.Parse(DateTime.Now.ToString("HHmm")) < 1900))
                     {
-                        needRest = true;
+                        NeedRest = true;
                         res = 0;
                     }
-                    if (ui.droneView.NumDronesIndside() < numDrones && useDronesAsMainDPS)// not enough drones
+                    if (siteFinished)
                     {
-                        noDroneTicks++;
-                        if (noDroneTicks > 3)
-                        {
-                            logWriter.LogWrite($"not enough drones!{ui.droneView.NumDronesIndside()}");
-                            disabled = true;
-                            res = 0;
-                        }
+                        var nextBM = BMs.First(bm => ui.standaloneBookmarkWindow.labels.Any(l => l.text.Equals(bm.Key)));
+                        lastBM = nextBM.Key;
                     }
                     else
                     {
-                        noDroneTicks = 0;
+                        var nextBM = BMs.Last(bm => ui.standaloneBookmarkWindow.labels.Any(l => l.text.Equals(bm.Key)));
+                        lastBM = nextBM.Key;
                     }
-                    lastBM = BMs.First().Key;
-                    
+                    Log($"siteFinished: {siteFinished} NextBM: {lastBM}");
                     if (WarpToAbstract(ui.standaloneBookmarkWindow.labels.First(l => l.text.Equals(lastBM)).node) == 0)
                     {
-                        state[navigate] = 1;
-                        BMs[lastBM] = tick;
-                        if (!ui.overview.tabs_.First(t => t.text.Contains(tabPve)).selected)
+
+                        if (ui.overview.tabs_.First(t => t.text.Contains(tabPve)).selected)
+                        {
+                            state[navigate] = 1;
+                            BMs[lastBM] = tick;
+                        }
+                        else
                         {
                             input.MouseClickLeft(ui.overview.tabs_.First(t => t.text.Contains(tabPve)).node, ui.root);
                         }
@@ -101,6 +124,7 @@ namespace SBotLogicImpl
                 case 1://check anom
                     if (avoidBadSpawns && ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => BadSpawns.Any(bs => l.Contains(bs)))))
                     {
+                        siteFinished= true;
                         state[navigate] = 101;
                         goto case 101;
                     }
@@ -108,12 +132,15 @@ namespace SBotLogicImpl
                     {
                         if (ui.overview.NumPlayer() > 0||ui.overview.NumNPC()<1)
                         {
-
+                            Log($"player: {ui.overview.NumPlayer()} NPC: {ui.overview.NumNPC()}");
+                            siteFinished= true;
                             state[navigate] = 0;
                         }
                         else
                         {
+                            siteFinished = false;
                             state[navigate] = 2;
+                            goto case 2;
                         }
                     }
                     break;
@@ -145,6 +172,13 @@ namespace SBotLogicImpl
         public override bool NeedLogOff()
         {
             return false;
+        }
+        WindowsMediaPlayer officerWarningPlayer = new();
+        public override bool PreFlightCheck(EveUIParser.EveUI ui)
+        {
+            officerWarningPlayer.settings.autoStart = false;
+            officerWarningPlayer.URL = "w_officer.mp3";
+            return base.PreFlightCheck(ui);
         }
     }
 }
