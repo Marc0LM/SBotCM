@@ -75,7 +75,7 @@ namespace SBotCore
                 Thread.Sleep(100);
                 if (stopwatchRA.ElapsedMilliseconds > 300_000) break;
             }
-            sr_.WaitOne(1000);
+            sr_.WaitOne(1000);//FIX crashed consumer
             return ra_;
         }
 
