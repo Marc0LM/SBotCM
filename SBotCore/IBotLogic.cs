@@ -65,7 +65,7 @@ namespace SBotCore
             {
                 assembly = Assembly.Load(assemblyBytes);
             }
-            var botlogic_implments = assembly.GetTypes().Where(t => t.IsSubclassOf(typeof(IBotLogic)) && !t.IsAbstract);
+            var botlogic_implments = assembly.GetTypes().Where(t => typeof(IBotLogic).IsAssignableFrom(t) && !t.IsAbstract);
             var serializer = new SerializerBuilder()
                 .Build();
             botlogic_implments.ToList().ForEach(bli =>

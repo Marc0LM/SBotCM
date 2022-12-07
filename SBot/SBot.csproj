@@ -20,9 +20,9 @@
     <!--RuntimeIdentifier>win-x64</RuntimeIdentifier-->
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <!--<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Optimize>False</Optimize>
-  </PropertyGroup>
+  </PropertyGroup>-->
 
   <ItemGroup>
     <Content Include="a8fr0-bised-001.ico" />

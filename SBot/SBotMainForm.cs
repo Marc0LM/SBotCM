@@ -58,9 +58,10 @@ namespace SBot
                 {
                     CBPairs = new Deserializer().Deserialize<Dictionary<string, string>>(CBPReader.ReadToEnd());
                 }
-                catch { CBPairs = new(); }
+                catch {}
                 //PBS(CBPSerializer.Deserialize(CBPReader) as Dictionary<string, string>);
             }
+            if (CBPairs == null) { CBPairs = new(); }
             Task.Run(() =>
                 {
                     statusStrip1.Items[0].Text = "loading bots";

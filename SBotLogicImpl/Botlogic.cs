@@ -19,8 +19,7 @@ namespace SBotLogicImpl
         public int versionConfig = 221122;
         public string BotType { get => this.GetType().Name; set => new Object(); }
 
-        [YamlIgnore]
-        public LogWriter? logWriter;
+        protected LogWriter? logWriter;
 
         protected IInput? input;
 

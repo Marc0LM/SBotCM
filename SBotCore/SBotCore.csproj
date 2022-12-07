@@ -9,9 +9,9 @@
     <SignAssembly>False</SignAssembly>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <!--<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Optimize>False</Optimize>
-  </PropertyGroup>
+  </PropertyGroup>-->
 
   <ItemGroup>
     <Compile Remove="InputFocused.cs" />
