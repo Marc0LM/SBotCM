@@ -121,7 +121,9 @@ extern "C" __declspec(dllexport) bool WINAPI DllMain(HINSTANCE hInstDll, DWORD f
               memcpy((char*)pBuf + 16, &PB_buf_address, 8);
             } break;
             case 5: {
-              // emr.readAll = true;
+              uint64_t readAll = 0;
+              memcpy(&readAll, (char*)pBuf + 48, 8);
+              if (readAll == 11212) emr.readAll = true;
               auto UITree = emr.ReadUITreeFromAddress(ra, depth);
 
               auto UITreePB2211 = std::make_unique<UITreeNodePB2211>();

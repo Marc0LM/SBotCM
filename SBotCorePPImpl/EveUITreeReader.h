@@ -34,7 +34,7 @@ class EveUITreeReader {
   std::shared_ptr<IMemoryReader> memory_reader_;
   EveUITreeReader() = delete;
   EveUITreeReader(uint64_t pid) : process_ID_(pid) {
-    memory_reader_ = std::make_shared<MemoryReaderFromProcess>(pid);
+    memory_reader_ = std::make_shared<MemoryReaderRPM>(pid);
     dict_entries_of_interest_keys_ = std::set<std::string>{
         "children", "_top", "_left", "_width", "_height", "_displayX", "_displayY", "_display",
         //"_displayHeight", "_displayWidth",
@@ -57,6 +57,9 @@ class EveUITreeReader {
         //  Found in "ModuleButton"
         "quantity", "isDeactivating", "ramp_active",
         //"isInActiveState"  //, "busy"
+
+        // SquadronsUI
+        "squadronMaxSize", "squadronSize", "slotID", "buttonDisabled",
 
         ////  Found in the Transforms contained in "ShipModuleButtonRamps"
         //"_rotation",
@@ -100,8 +103,8 @@ class EveUITreeReader {
   }
   std::shared_ptr<UITreeNode> ReadUITreeFromAddress(Address nodeAddress, int maxDepth) {
     std::tm tm{};              // zero initialise
-    tm.tm_year = 2023 - 1900;  // 2022
-    tm.tm_mon = 1 - 1;
+    tm.tm_year = 2023 - 1900;  // 2023
+    tm.tm_mon = 3 - 1;
     tm.tm_mday = 1;
     tm.tm_hour = 1;
     tm.tm_min = 1;
@@ -434,7 +437,7 @@ class EveUITreeReader {
 
   // about finding root address
   std::map<Address, Size> ReadCommittedMemoryRegionsFromProcess(uint64_t processId) {
-    MemoryReaderFromProcess mr(processId);
+    MemoryReaderRPM mr(processId);
 
     Address address = 0;
 

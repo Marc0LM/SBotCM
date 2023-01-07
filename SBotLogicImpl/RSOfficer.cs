@@ -20,7 +20,7 @@ namespace SBotLogicImpl
         public bool stayBesideGoodSpawns = false;
         protected override List<string> BadSpawns { get => base.BadSpawns.Concat(goodSpawnNames).ToList();}
         public override string Summary() => (goodSpawnBMs.Any() ? goodSpawnBMs.Aggregate((b1, b2) => b1 + " " + b2) :
-            ui == null ? "ui==null" : ui.shipUI.hp_ + " / " +
+            ui == null ? "ui==null" : ui.shipUI.HP + " / " +
                             state.Select(s => s.Key + ":" + s.Value).Aggregate((a, b) => a + " " + b) + " / " +
                             ticksSinceLastHostile + " / " +
                             camperTicks + " / " +
@@ -30,7 +30,7 @@ namespace SBotLogicImpl
         public override int OnBadSpawn()
         {
             if (stayBesideGoodSpawns &&
-                goodSpawnNames.Any(bs => ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => l.Contains(bs)))))
+                goodSpawnNames.Any(bs => ui.overview.AllEntrys.Any(oe => oe.labels.Any(l => l.Contains(bs)))))
             {
                 while (true)
                 {
@@ -52,7 +52,7 @@ namespace SBotLogicImpl
             officerWarningPlayer.controls.play();
             //CloseDM();
             Log("goodSpawn-----runing");
-            string? goodSpawnName = BadSpawns.FirstOrDefault(bs => ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => l.Contains(bs))));
+            string? goodSpawnName = BadSpawns.FirstOrDefault(bs => ui.overview.AllEntrys.Any(oe => oe.labels.Any(l => l.Contains(bs))));
             if (goodSpawnName!=null)
             {
                 Log($"goodSpawn: {goodSpawnName}-{lastBM}");
@@ -107,22 +107,24 @@ namespace SBotLogicImpl
                         lastBM = nextBM.Key;
                     }
                     Log($"siteFinished: {siteFinished} NextBM: {lastBM}");
-                    if (WarpToAbstract(ui.standaloneBookmarkWindow.labels.First(l => l.text.Equals(lastBM)).node) == 0)
+                    if (WarpToAbstract(ui.standaloneBookmarkWindow.labels.First(l => l.text.Equals(lastBM)).node) == 0
+                        || (ui.overview.NumPlayer > 0&&!ui.shipUI.Navistate.warp))
                     {
 
-                        if (ui.overview.tabs_.First(t => t.text.Contains(tabPve)).selected)
+                        if (ui.overview.tabs.First(t => t.text.Contains(tabPve)).selected)
                         {
                             state[navigate] = 1;
                             BMs[lastBM] = tick;
+                            goto case 1;
                         }
                         else
                         {
-                            input.MouseClickLeft(ui.overview.tabs_.First(t => t.text.Contains(tabPve)).node, ui.root);
+                            input.MouseClickLeft(ui.overview.tabs.First(t => t.text.Contains(tabPve)).node, ui.root);
                         }
                     }
                     break;
                 case 1://check anom
-                    if (avoidBadSpawns && ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => BadSpawns.Any(bs => l.Contains(bs)))))
+                    if (avoidBadSpawns && ui.overview.AllEntrys.Any(oe => oe.labels.Any(l => BadSpawns.Any(bs => l.Contains(bs)))))
                     {
                         siteFinished= true;
                         state[navigate] = 101;
@@ -130,9 +132,9 @@ namespace SBotLogicImpl
                     }
                     else
                     {
-                        if (ui.overview.NumPlayer() > 0||ui.overview.NumNPC()<1)
+                        if (ui.overview.NumPlayer > 0||ui.overview.NumNPC<1)
                         {
-                            Log($"player: {ui.overview.NumPlayer()} NPC: {ui.overview.NumNPC()}");
+                            Log($"player: {ui.overview.NumPlayer} NPC: {ui.overview.NumNPC}");
                             siteFinished= true;
                             state[navigate] = 0;
                         }
@@ -140,7 +142,7 @@ namespace SBotLogicImpl
                         {
                             siteFinished = false;
                             state[navigate] = 2;
-                            goto case 2;
+                            goto case 3;
                         }
                     }
                     break;
@@ -151,8 +153,6 @@ namespace SBotLogicImpl
                     }
                     break;
                 case 2://launch drones
-                    //ReadyKeyClick();
-                    //input.KeyClick(keyReconnectDrones);
                     ActivateAlwaysOnModules(true);
                     if (useDronesAsMainDPS)
                     {
@@ -160,6 +160,11 @@ namespace SBotLogicImpl
                     }
                     ActivateF1Module(true);
                     res = 0;
+                    break;
+                case 3:
+                    ReadyKeyClick();
+                    input.KeyClick(keyReconnectDrones);
+                    state[navigate] = 2;
                     break;
             }
             if (res == 0)

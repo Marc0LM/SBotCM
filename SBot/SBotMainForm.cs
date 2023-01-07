@@ -124,43 +124,47 @@ namespace SBot
                 Parallel.ForEach(eveProcesses,p =>
                 //eveProcesses.ForEach(p=>
                 {
-                    if (p.MainModule == null) return;
-                    if (p.MainModule.ModuleName == null) return;
-                    if (p.MainModule.ModuleName.Equals("exefile.exe"))
+                    try
                     {
-                        if (p.MainWindowTitle.Any())
+                        if (p.MainModule == null) return;
+                        if (p.MainModule.ModuleName == null) return;
+                        if (p.MainModule.ModuleName.Equals("exefile.exe"))
                         {
-                            try
+                            if (p.MainWindowTitle.Any())
                             {
-                                if (!bots.Any(b => b.process.Id.Equals(p.Id)))
+                                try
                                 {
-                                    Bot b = new()
+                                    if (!bots.Any(b => b.process.Id.Equals(p.Id)))
                                     {
-                                        process = p,
-                                        EUITR = new EveUITreeReaderCM(injection_dll_bytes_)
-                                    };
-                                    b.EUITR.FindRootAddress(b.process.Id);
-                                    b.botRun = false;
-                                    lock (bots)
-                                    {
-                                        bots.Add(b);
+                                        Bot b = new()
+                                        {
+                                            process = p,
+                                            EUITR = new EveUITreeReaderCM(injection_dll_bytes_)
+                                        };
+                                        b.EUITR.FindRootAddress(b.process.Id);
+                                        b.botRun = false;
+                                        lock (bots)
+                                        {
+                                            bots.Add(b);
+                                        }
                                     }
-                                }
 
-                            }
-                            catch (Exception ex)
-                            {
-                                if (ex.GetType().Equals(typeof(System.Threading.WaitHandleCannotBeOpenedException)))
-                                {
-                                    MessageBox.Show("Are you placing bot under a non-egnlish path?");
                                 }
-                                else
+                                catch (Exception ex)
                                 {
-                                    MessageBox.Show(ex.ToString());
+                                    if (ex.GetType().Equals(typeof(System.Threading.WaitHandleCannotBeOpenedException)))
+                                    {
+                                        MessageBox.Show("Are you placing bot under a non-egnlish path?");
+                                    }
+                                    else
+                                    {
+                                        MessageBox.Show(ex.ToString());
+                                    }
                                 }
                             }
                         }
                     }
+                    catch { }
                 });
 
             });
@@ -199,7 +203,7 @@ namespace SBot
                 MessageBox.Show("Please specify a client");
                 return;
             }
-            StartBot(currentClient, currentConfig);
+            StartBot(currentClient, currentConfig);//.Wait();
         }
         Dictionary<string, string> CBPairs;
         //XmlSerializer CBPSerializer = new XmlSerializer(typeof(Dictionary<string, string>));
@@ -214,6 +218,12 @@ namespace SBot
             {
                 MessageBox.Show("This client has been closed, please list clients again!");
             }
+            //var t = EveUI.Parse(b.EUITR.ReadUITree(16));
+            //IBotLogic.FromConfigFile(config,
+            //            b.process.MainWindowHandle.ToInt32(),
+            //            new LogWriter(DateTime.Now.ToString("yyyyMMdd HHmm ") + client),
+            //            true,
+            //            botlogicBytes);
             b.task = Task.Run(() =>
             {
                 UITreeNode tree;
@@ -232,7 +242,6 @@ namespace SBot
                     }
 
                     tree = b.EUITR.ReadUITree(16);
-
                     ui = EveUI.Parse(tree);
                     if (!b.botLogic.PreFlightCheck(ui))
                     {
@@ -247,7 +256,7 @@ namespace SBot
 
                 b.botRun = true;
 
-                if(CBPairs.ContainsKey(client))
+                if (CBPairs.ContainsKey(client))
                 {
                     CBPairs[client] = config;
                 }
@@ -290,6 +299,8 @@ namespace SBot
                 b.botRun = false;
                 b.botLogic.Log("Stopped");
             });
+            //}).Start();
+            //await b.task;
         }
 
         private void Timer0_Tick(object sender, EventArgs e)
@@ -414,7 +425,7 @@ namespace SBot
         }
         private void PBS(Dictionary<string, string> Pairs)
         {
-            var CBPs=bots.TakeWhile(b => 
+            var CBPs=bots.Where(b => 
             !b.botRun && !b.process.HasExited && Pairs.ContainsKey(b.process.MainWindowTitle))
                 .Select(b => (b, Pairs[b.process.MainWindowTitle]));
             if(MessageBox.Show(CBPs.Select(cbp => cbp.b.process.MainWindowTitle + "->" + cbp.Item2).Aggregate((a, b) => a + "\n" + b),"PBS", MessageBoxButtons.YesNoCancel)

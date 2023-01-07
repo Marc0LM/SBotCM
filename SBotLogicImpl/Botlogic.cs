@@ -143,20 +143,30 @@ namespace SBotLogicImpl
             this.ui = ui;
             UpdateCB();
         }
-        protected WindowsMediaPlayer alertWarningPlayer = new();
-        protected WindowsMediaPlayer dcWarningPlayer = new();
-        protected WindowsMediaPlayer essWarningPlayer = new();
+
+        public class WarningPlayer
+        {
+            WindowsMediaPlayer player;
+            public WarningPlayer(string url)
+            {
+                player = new();
+                player.URL = url;
+                player.settings.autoStart = false;
+            }
+            public void Play()
+            {
+                player.controls.play();
+            }
+        }
+        protected WarningPlayer alertWarningPlayer;
+        protected WarningPlayer dcWarningPlayer;
+        protected WarningPlayer essWarningPlayer;
+
         public virtual bool PreFlightCheck(EveUI ui)
         {
-            alertWarningPlayer.settings.autoStart = false;
-            dcWarningPlayer.settings.autoStart = false;
-            essWarningPlayer.settings.autoStart = false;
-
-            alertWarningPlayer.URL = "w_hostile.mp3";
-            dcWarningPlayer.URL = "w_dc.mp3";
-            essWarningPlayer.URL = "w_ess.mp3";
-
-
+            alertWarningPlayer = new("w_hostile.mp3");
+            dcWarningPlayer = new("w_dc.mp3");
+            essWarningPlayer = new("w_ess.mp3");
 
             return true;
         }

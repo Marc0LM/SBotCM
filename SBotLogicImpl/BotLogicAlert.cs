@@ -12,7 +12,14 @@ namespace SBotLogicImpl
     {
         public bool do_watch_local_ = true;
         public bool do_watch_ov_ = false;
+        public string alertSound = "w_hostile.mp3";
         bool need_alert_;
+        public override bool PreFlightCheck(EveUIParser.EveUI ui)
+        {
+            base.PreFlightCheck(ui);
+            alertWarningPlayer.URL= alertSound;
+            return true;
+        }
         public override string Summary()
         {
             return need_alert_?"Hostile":"Safe";
@@ -24,7 +31,7 @@ namespace SBotLogicImpl
             need_alert_ = false;
             if(do_watch_local_)
             {
-                if (ui.localChatwindowStack.members_.Any(m => m.tag.Contains("No") ||
+                if (ui.localChatwindowStack.Members.Any(m => m.tag.Contains("No") ||
                      m.tag.Contains("Neutral") ||
                      m.tag.Contains("Bad") ||
                      m.tag.Contains("Terrible")))
@@ -34,7 +41,7 @@ namespace SBotLogicImpl
             }
             if(do_watch_ov_)
             {
-                if (ui.overview.NumPlayer() > 0)
+                if (ui.overview.NumPlayer > 0)
                 {
                     need_alert_ = true;
                 }
@@ -43,7 +50,7 @@ namespace SBotLogicImpl
             {
                 alertWarningPlayer.controls.play();
             }
-            Thread.Sleep(1000);
+            Thread.Sleep(500);
         }
     }
 }

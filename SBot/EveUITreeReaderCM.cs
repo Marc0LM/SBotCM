@@ -23,17 +23,26 @@ namespace SBotCore
         byte[] dll_data_;
 
         MemoryMappedFile read_uitree_stats_;
+
         Semaphore sr_, sw_;
         ulong ra_ = 0;
         [DllImport("version.dll")]
         static extern ulong FindRootAddressEx(Int32 pid);
+        private MemoryMappedViewAccessor controlBlockReader;
+        bool debug = false;
+        ulong readAll = 0;
+        ulong readMode = 5;
         public ulong FindRootAddress(int pid)
         {
             if (File.Exists("prerelease"))
             {
                 readMode = 5;
             }
-
+            if (File.Exists("debug"))
+            {
+                readAll = 11212;
+                debug = true;
+            }
             string dllName = "data.dll";
             if (readMode == 5) dllName = "version.dll";
             string dll_name_ = System.AppContext.BaseDirectory + dllName;
@@ -63,7 +72,7 @@ namespace SBotCore
             sr_ = Semaphore.OpenExisting(pid.ToString() + "R");
             string sznamebase = "Local\\";
             read_uitree_stats_ = MemoryMappedFile.CreateOrOpen(sznamebase + pid.ToString(), 1024);
-            var statsreader = read_uitree_stats_.CreateViewAccessor();
+            controlBlockReader = read_uitree_stats_.CreateViewAccessor();
             Stopwatch stopwatchRA = new();
             stopwatchRA.Start();
             //var raTask=Task.Run(() => ra_ = FindRootAddressEx(pid));
@@ -71,45 +80,39 @@ namespace SBotCore
             //statsreader.Write(0, ra_);
             while (ra_ == 0)
             {
-                ra_ = statsreader.ReadUInt64(0);
+                ra_ = controlBlockReader.ReadUInt64(0);
                 Thread.Sleep(100);
                 if (stopwatchRA.ElapsedMilliseconds > 300_000) break;
             }
             sr_.WaitOne(1000);//FIX crashed consumer
+
+            controlBlockReader.Write(48, readAll);
+            controlBlockReader.Write(32, readMode);
+
             return ra_;
         }
 
-        (ulong dur_read, ulong dur_trans, ulong byte_count) stat_;
-        ulong readMode = (ulong)4;
+        (ulong dur_read, ulong dur_trans, ulong byte_count) stat;
+
         public UITreeNode ReadUITree(int depth)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            var statsreader = read_uitree_stats_.CreateViewAccessor();
-
-
-            Console.WriteLine(readMode);
-            statsreader.Write(32, readMode);
-            WaitHandle.SignalAndWait(sw_, sr_);
-
-
-
-            var ra = statsreader.ReadUInt64(0);
-            var byte_count = statsreader.ReadUInt64(8);
-            var rta = statsreader.ReadUInt64(16);
-
-            var dur = statsreader.ReadDouble(24);
-
-            Console.WriteLine(dur);
-            Console.WriteLine(byte_count);
             UITreeNode res = null;
             var readTask = Task.Run(() =>
             {
+                WaitHandle.SignalAndWait(sw_, sr_);
+
+                var ra = controlBlockReader.ReadUInt64(0);
+                var byte_count = controlBlockReader.ReadUInt64(8);
+                var rta = controlBlockReader.ReadUInt64(16);
+                var dur = controlBlockReader.ReadDouble(24);
+
                 switch (readMode)
                 {
                     case 3:
                         {
                             byte[] buf_ = new byte[byte_count];
-                            statsreader.ReadArray(1024, buf_, 0, (int)byte_count);
+                            controlBlockReader.ReadArray(1024, buf_, 0, (int)byte_count);
 
                             res = FromUITreeNodePB(UITreeNodePB.Parser.ParseFrom(buf_));
                         }
@@ -141,18 +144,20 @@ namespace SBotCore
                     default:
                         break;
                 }
+                stat.dur_read = (ulong)(dur * 1000);
+                stat.dur_trans = (ulong)stopwatch.ElapsedMilliseconds;
+                stat.byte_count = (ulong)(byte_count);
             });
             readTask.Wait(5000);
+
             stopwatch.Stop();
-            stat_.dur_read = (ulong)(dur * 1000);
-            stat_.dur_trans = (ulong)stopwatch.ElapsedMilliseconds;
-            stat_.byte_count = (ulong)(byte_count);
+
             return res;
         }
 
         public object Stat()
         {
-            return stat_;
+            return stat;
         }
 
         static string GetStringFromCustomBytes(ByteString input)
@@ -179,27 +184,27 @@ namespace SBotCore
         {
             var res = new UITreeNode
             {
-                python_object_type_name = tree_in.PythonObjectTypeName,
-                dict_entries_of_interest = new()
+                pythonObjectTypeName = tree_in.PythonObjectTypeName,
+                dictEntriesOfInterest = new()
             };
 
-            res.dict_entries_of_interest.Add("_name", GetStringFromCustomBytes(tree_in.Name));
-            res.dict_entries_of_interest.Add("_text", GetStringFromCustomBytes(tree_in.Text));
-            res.dict_entries_of_interest.Add("_setText", GetStringFromCustomBytes(tree_in.SetText));
-            res.dict_entries_of_interest.Add("_hint", GetStringFromCustomBytes(tree_in.Hint));
+            res.dictEntriesOfInterest.Add("_name", GetStringFromCustomBytes(tree_in.Name));
+            res.dictEntriesOfInterest.Add("_text", GetStringFromCustomBytes(tree_in.Text));
+            res.dictEntriesOfInterest.Add("_setText", GetStringFromCustomBytes(tree_in.SetText));
+            res.dictEntriesOfInterest.Add("_hint", GetStringFromCustomBytes(tree_in.Hint));
 
-            res.dict_entries_of_interest.Add("_top", tree_in.Top);
-            res.dict_entries_of_interest.Add("_left", tree_in.Left);
-            res.dict_entries_of_interest.Add("_height", tree_in.Height);
-            res.dict_entries_of_interest.Add("_width", tree_in.Width);
-            res.dict_entries_of_interest.Add("_displayX", tree_in.DisplayX);
-            res.dict_entries_of_interest.Add("_displayY", tree_in.DisplayY);
-            res.dict_entries_of_interest.Add("_lastValue", tree_in.LastValue);
-            res.dict_entries_of_interest.Add("_selected", tree_in.Selected);
-            res.dict_entries_of_interest.Add("ramp_active", tree_in.Active);
-            res.dict_entries_of_interest.Add("isDeactivating", tree_in.IsDeactivating);
-            res.dict_entries_of_interest.Add("_display", tree_in.Display);
-            res.dict_entries_of_interest.Add("quantity", tree_in.Quantity);
+            res.dictEntriesOfInterest.Add("_top", tree_in.Top);
+            res.dictEntriesOfInterest.Add("_left", tree_in.Left);
+            res.dictEntriesOfInterest.Add("_height", tree_in.Height);
+            res.dictEntriesOfInterest.Add("_width", tree_in.Width);
+            res.dictEntriesOfInterest.Add("_displayX", tree_in.DisplayX);
+            res.dictEntriesOfInterest.Add("_displayY", tree_in.DisplayY);
+            res.dictEntriesOfInterest.Add("_lastValue", tree_in.LastValue);
+            res.dictEntriesOfInterest.Add("_selected", tree_in.Selected);
+            res.dictEntriesOfInterest.Add("ramp_active", tree_in.Active);
+            res.dictEntriesOfInterest.Add("isDeactivating", tree_in.IsDeactivating);
+            res.dictEntriesOfInterest.Add("_display", tree_in.Display);
+            res.dictEntriesOfInterest.Add("quantity", tree_in.Quantity);
 
             res.children = new UITreeNode[tree_in.Children.Count];
             for (int i = 0; i < tree_in.Children.Count; i++)
@@ -213,29 +218,32 @@ namespace SBotCore
         {
             var res = new UITreeNode
             {
-                python_object_address = tree_in.PythonObjectAddress,
-                python_object_type_name = tree_in.PythonObjectTypeName,
-                dict_entries_of_interest = new()
+                pythonObjectAddress = tree_in.PythonObjectAddress,
+                pythonObjectTypeName = tree_in.PythonObjectTypeName,
+                dictEntriesOfInterest = new()
             };
             foreach(var f in tree_in.Fields)
             {
                 switch (f.Value.KindCase)
                 {
                     case Value.KindOneofCase.Int32Value:
-                        res.dict_entries_of_interest[f.Key] = f.Value.Int32Value;
+                        res.dictEntriesOfInterest[f.Key] = f.Value.Int32Value;
                         break;
                     case Value.KindOneofCase.DoubleValue:
-                        res.dict_entries_of_interest[f.Key] = f.Value.DoubleValue;
+                        res.dictEntriesOfInterest[f.Key] = f.Value.DoubleValue;
                         break;
                     case Value.KindOneofCase.StringValue:
-                        res.dict_entries_of_interest[f.Key] = GetStringFromCustomBytes(f.Value.StringValue);
+                        res.dictEntriesOfInterest[f.Key] = GetStringFromCustomBytes(f.Value.StringValue);
                         break;
                     case Value.KindOneofCase.BoolValue:
-                        res.dict_entries_of_interest[f.Key] = f.Value.BoolValue;
+                        res.dictEntriesOfInterest[f.Key] = f.Value.BoolValue;
                         break;
                 }
             }
-
+            if (debug)
+            {
+                res.dictEntriesOfInterest= res.dictEntriesOfInterest.OrderBy(d => d.Key).ToDictionary(d => d.Key, d => d.Value);
+            }
             res.children = new UITreeNode[tree_in.Children.Count];
             for (int i = 0; i < tree_in.Children.Count; i++)
             {

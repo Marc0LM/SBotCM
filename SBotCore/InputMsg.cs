@@ -15,12 +15,12 @@ namespace SBotCore
         readonly IDictionary<string, int> key_codes_ = new Dictionary<string, int>();
 
         static Random random = new();
-        static int msduringClick = 40;
-        static int randdurclick = 10;
+        static int msduringClick = 30;
+        static int randdurclick = 20;
         static int randx = 5;
         static int randy = 5;
-        static int biasy = 1;
-        static int biasx = 1;
+        static int biasy = 2;
+        static int biasx = 2;
 
         public InputMsg(int handle)
         {
@@ -68,25 +68,25 @@ namespace SBotCore
             }
         }
 
-        public void MouseMove(UITreeNode node, UITreeNode root)
+        public void MouseMove(UITreeNode node, UITreeNode root, bool center = false)
         {
-            var (dx, dy) = InputHelper.ClientCoordinateofUITtreeNode(node, root);
+            var (dx, dy) = InputHelper.ClientCoordinateofUITtreeNode(node, root,center);
             var rx = dx + biasx + random.Next() % randx;
             var ry = dy + biasy + random.Next() % randy;
             MouseMsgMove(rx, ry);
         }
-        public void MouseClickLeft(UITreeNode node, UITreeNode root)
+        public void MouseClickLeft(UITreeNode node, UITreeNode root, bool center = false)
         {
-            var (dx, dy) = InputHelper.ClientCoordinateofUITtreeNode(node, root);
+            var (dx, dy) = InputHelper.ClientCoordinateofUITtreeNode(node, root, center);
             var rx = dx + biasx + random.Next() % randx;
             var ry = dy + biasy + random.Next() % randy;
 
             MouseMsgLBC(rx, ry);
 
         }
-        public void MouseClickRight(UITreeNode node, UITreeNode root)
+        public void MouseClickRight(UITreeNode node, UITreeNode root, bool center = false)
         {
-            var (dx, dy) = InputHelper.ClientCoordinateofUITtreeNode(node, root);
+            var (dx, dy) = InputHelper.ClientCoordinateofUITtreeNode(node, root, center);
             var rx = dx + biasx + random.Next() % randx;
             var ry = dy + biasy + random.Next() % randy;
 

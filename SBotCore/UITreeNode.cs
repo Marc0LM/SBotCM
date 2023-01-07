@@ -2,17 +2,47 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-
+using System.Reflection.Metadata;
+using System.Threading;
 
 namespace SBotCore
 {
+    public static class ExtensionValue
+    {
+        static Dictionary<int, LogWriter> loggers = new();
+        //static LogWriter logWriter = new("DictEntriesOfInterest.txt"+ Environment.CurrentManagedThreadId);
+        static public T Value<T>(this Dictionary<string, object> sender, string key)
+        {
+            if (sender.ContainsKey(key) && sender[key].GetType() == typeof(T))
+            {
+                return (T)sender[key];
+            }
+            else
+            {
+                //if (loggers.ContainsKey(Environment.CurrentManagedThreadId))
+                //{
+                //    loggers[Environment.CurrentManagedThreadId].LogWrite(key);
+                //}
+                //else
+                //{
+                //    loggers.Add(Thread.CurrentThread.ManagedThreadId, new("DictEntriesOfInterest.txt" + Environment.CurrentManagedThreadId));
+                //}
+                return default(T);
+            }
+        }
+        static public T Value<T>(this UITreeNode sender, string key)
+        {
+            return sender.dictEntriesOfInterest.Value<T>(key);
+        }
+    }
     public class UITreeNode
     {
-        public ulong python_object_address;
+        public ulong pythonObjectAddress;
 
-        public string python_object_type_name;
+        public string pythonObjectTypeName;
 
-        public DictEntriesOfInterest dict_entries_of_interest;
+        public Dictionary<string, object> dictEntriesOfInterest;
+        
 
         public class DictEntriesOfInterest : Dictionary<string, object>
         {
@@ -25,20 +55,21 @@ namespace SBotCore
                 }
                 else
                 {
+                    
                     return default(T);
                 }
             }
         }
 
-        public string[] other_dict_entries_keys;
+        public string[] otherDictEntriesKeys;
 
         public UITreeNode[] children;
 
         public struct DictEntryValueGenericRepresentation
         {
-            public ulong address_;
+            public ulong address;
 
-            public string python_object_type_name;
+            public string pythonObjectTypeName;
         }
 
         public struct DictEntry
@@ -49,7 +80,7 @@ namespace SBotCore
 
         public class Bunch
         {
-            public List<DictEntry> entries_of_interest;
+            public List<DictEntry> entriesOfInterest;
         }
 
         public IEnumerable<UITreeNode> EnumerateSelfAndDescendants() =>
@@ -60,10 +91,10 @@ namespace SBotCore
         {
             return new UITreeNode
             {
-                python_object_address = python_object_address,
-                python_object_type_name = python_object_type_name,
-                dict_entries_of_interest = dict_entries_of_interest,
-                other_dict_entries_keys = null,
+                pythonObjectAddress = pythonObjectAddress,
+                pythonObjectTypeName = pythonObjectTypeName,
+                dictEntriesOfInterest = dictEntriesOfInterest,
+                otherDictEntriesKeys = null,
                 children = children?.Select(child => child?.WithOtherDictEntriesRemoved()).ToArray(),
             };
         }

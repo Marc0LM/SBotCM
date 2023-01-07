@@ -42,12 +42,12 @@ namespace SBotLogicImpl
                         Log(pa);
                         IEnumerable<Anom> candidates = anomOrder switch
                         {
-                            AnomOrder.IDF => ui.probescannerView.anoms_.OrderBy(a => a.Id),
-                            AnomOrder.IDL => ui.probescannerView.anoms_.OrderByDescending(a => a.Id),
-                            AnomOrder.First => ui.probescannerView.anoms_,
-                            AnomOrder.Last => ui.probescannerView.anoms_.Reverse<Anom>(),
-                            AnomOrder.Nearest => ui.probescannerView.anoms_.OrderBy(a => a.DistanceByKm),
-                            _ => ui.probescannerView.anoms_.OrderBy(a => a.DistanceByKm),
+                            AnomOrder.IDF => ui.probescannerView.anoms.OrderBy(a => a.Id),
+                            AnomOrder.IDL => ui.probescannerView.anoms.OrderByDescending(a => a.Id),
+                            AnomOrder.FIRST => ui.probescannerView.anoms,
+                            AnomOrder.LAST => ui.probescannerView.anoms.Reverse<Anom>(),
+                            AnomOrder.NEAREST => ui.probescannerView.anoms.OrderBy(a => a.DistanceByKm),
+                            _ => ui.probescannerView.anoms.OrderBy(a => a.DistanceByKm),
                         };
                         return candidates.Where(a => badanoms.All(ba => !ba.Equals(a.Id)) && a.Name.Contains(pa.Split('@')[0]))
                                 .Select(a => (a, pa.Contains('@') ? pa.Split('@')[1] : defaultWarpToAnomDistanceKM)).FirstOrDefault();
@@ -81,16 +81,16 @@ namespace SBotLogicImpl
                                 warpAction = WarpToAbstractWithIn;
                                 actualWarpToAnomDistanceKM = tWarpToAnomDistanceKM;
                             }
-                            if (ui.overview.tabs_.Any(t => t.text.Contains(tabPve)))//choose pve tab
+                            if (ui.overview.tabs.Any(t => t.text.Contains(tabPve)))//choose pve tab
                             {
-                                if (!ui.overview.tabs_.First(t => t.text.Contains(tabPve)).selected)
+                                if (!ui.overview.tabs.First(t => t.text.Contains(tabPve)).selected)
                                 {
-                                    input.MouseClickLeft(ui.overview.tabs_.Where(t => t.text.Contains(tabPve)).First().node, ui.root);
+                                    input.MouseClickLeft(ui.overview.tabs.Where(t => t.text.Contains(tabPve)).First().node, ui.root);
                                 }
                             }
-                            if (0 == warpAction(nextAnom.Node) || (nextAnom.DistanceByKm < 150 && !ui.shipUI.navistate_.warp))//fix game ui bug: still shows warp when at 0 of anom
+                            if (0 == warpAction(nextAnom.Node) || (nextAnom.DistanceByKm < 150 && !ui.shipUI.Navistate.warp))//fix game ui bug: still shows warp when at 0 of anom
                             {
-                                if (ui.overview.tabs_.Any(t => t.text.Contains(tabPve) && t.selected))
+                                if (ui.overview.tabs.Any(t => t.text.Contains(tabPve) && t.selected))
                                 {
                                     state["warp"] = 0;
                                     state[navigate] = 1;
@@ -111,7 +111,7 @@ namespace SBotLogicImpl
                     }
                     break;
                 case 1://check anom
-                    if (avoidBadSpawns&&ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => BadSpawns.Any(bs => l.Contains(bs)))))
+                    if (avoidBadSpawns&&ui.overview.AllEntrys.Any(oe => oe.labels.Any(l => BadSpawns.Any(bs => l.Contains(bs)))))
                     {
                         state[navigate] = 101;
                         goto case 101;
@@ -122,7 +122,7 @@ namespace SBotLogicImpl
                     }
                     else
                     {
-                        if (ui.overview.NumPlayer() > 0)
+                        if (ui.overview.NumPlayer > 0)
                         {
                             if (nextAnom != null)
                             {

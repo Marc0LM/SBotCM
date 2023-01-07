@@ -8,9 +8,9 @@ namespace SBotCore
         void KeyClick(string k);
         void KeyUp(string k);
         void KeyDown(string k);
-        void MouseMove(UITreeNode node, UITreeNode root);
-        void MouseClickLeft(UITreeNode node, UITreeNode root);
-        void MouseClickRight(UITreeNode node, UITreeNode root);
+        void MouseMove(UITreeNode node, UITreeNode root, bool center = false);
+        void MouseClickLeft(UITreeNode node, UITreeNode root, bool center = false);
+        void MouseClickRight(UITreeNode node, UITreeNode root, bool center = false);
     }
     public class InputHelper
     {
@@ -18,8 +18,10 @@ namespace SBotCore
         {
             if (s == node)
             {
-                int tx = Math.Max(s.dict_entries_of_interest.Value<int>("_displayX"), s.dict_entries_of_interest.Value<int>("_left"));
-                int ty = Math.Max(s.dict_entries_of_interest.Value<int>("_displayY"), s.dict_entries_of_interest.Value<int>("_top"));
+                //int tx = Math.Max(s.dictEntriesOfInterest.Value<int>("_displayX"), s.dictEntriesOfInterest.Value<int>("_left"));
+                //int ty = Math.Max(s.dictEntriesOfInterest.Value<int>("_displayY"), s.dictEntriesOfInterest.Value<int>("_top"));
+                int tx = s.dictEntriesOfInterest.Value<int>("_displayX");
+                int ty = s.dictEntriesOfInterest.Value<int>("_displayY");
                 return (tx, ty);
             }
             if (s.children != null)
@@ -29,8 +31,10 @@ namespace SBotCore
                     var (x, y) = ClientCoordinateofUITtreeNodeR(node, c);
                     if (!(x == -9999))
                     {
-                        int tx = Math.Max(s.dict_entries_of_interest.Value<int>("_displayX"), s.dict_entries_of_interest.Value<int>("_left"));
-                        int ty = Math.Max(s.dict_entries_of_interest.Value<int>("_displayY"), s.dict_entries_of_interest.Value<int>("_top"));
+                        //int tx = Math.Max(s.dictEntriesOfInterest.Value<int>("_displayX"), s.dictEntriesOfInterest.Value<int>("_left"));
+                        //int ty = Math.Max(s.dictEntriesOfInterest.Value<int>("_displayY"), s.dictEntriesOfInterest.Value<int>("_top"));
+                        int tx = s.dictEntriesOfInterest.Value<int>("_displayX");
+                        int ty = s.dictEntriesOfInterest.Value<int>("_displayY");
                         return (tx + x, ty + y);
                     }
                 }
@@ -38,9 +42,15 @@ namespace SBotCore
             return (-9999, -1);
         }
 
-        public static (int x, int y) ClientCoordinateofUITtreeNode(UITreeNode node,UITreeNode root)
+        public static (int x, int y) ClientCoordinateofUITtreeNode(UITreeNode node,UITreeNode root,bool center=false)
         {
-            return ClientCoordinateofUITtreeNodeR(node, root);
+            var p = ClientCoordinateofUITtreeNodeR(node, root);
+            if (center)
+            {
+                p.x += node.Value<int>("_width")/2;
+                p.y += node.Value<int>("_height")/2;
+            }
+            return p;
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static SBotCore.EveUIParser.EveUI.ShipUI.Squadron;
 
 namespace SBotLogicImpl
 {
@@ -26,6 +27,23 @@ namespace SBotLogicImpl
 
         public override void UpdateCB()
         {
+            ui.shipUI.squadronsUI.squadrons.ToList().ForEach(Sq =>
+            {
+                Sq.slots.ForEach(sl =>
+                {
+                    var (x, y) = InputHelper.ClientCoordinateofUITtreeNode(sl.Node, ui.root, false);
+                    WinApi.SetCursorPos(x, y);
+                    Thread.Sleep(2000);
+                    (x, y) = InputHelper.ClientCoordinateofUITtreeNode(sl.Node, ui.root, true);
+                    WinApi.SetCursorPos(x, y);
+                    Thread.Sleep(2000);
+                });
+                var (x, y) = InputHelper.ClientCoordinateofUITtreeNode(Sq.node, ui.root, true);
+                WinApi.SetCursorPos(x, y);
+                Thread.Sleep(2000);
+            });
+
+            return;
             sw.Start();
             iter++;
             return;

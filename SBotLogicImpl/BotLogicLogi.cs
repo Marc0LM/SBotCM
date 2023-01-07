@@ -20,16 +20,16 @@ namespace SBotLogicImpl
 
         public override void UpdateCB()
         {
-            string m_name_ = ui.otherChatwindowStack.members_.FirstOrDefault(m => m.tag == m.name).name;
+            string m_name_ = ui.otherChatwindowStack.Members.FirstOrDefault(m => m.tag == m.name).name;
             if (Singleton.Instance.members.ContainsKey(m_name_))
             {
-                Singleton.Instance.members[m_name_] = ui.shipUI.hp_;
+                Singleton.Instance.members[m_name_] = ui.shipUI.HP;
             }
             else
             {
-                Singleton.Instance.members.Add(m_name_, ui.shipUI.hp_);
+                Singleton.Instance.members.Add(m_name_, ui.shipUI.HP);
             }
-            if (!ui.shipUI.navistate_.warp) ActivatePropMod(true);
+            if (!ui.shipUI.Navistate.warp) ActivatePropMod(true);
             var members = Singleton.Instance.members.ToList().OrderBy(kvp => kvp.Value.Item1).ToList();
             string target_name_ = "ajdwqbdlqwnd";
             foreach (var m in members)
@@ -37,38 +37,38 @@ namespace SBotLogicImpl
                 if (m.Value.Item1 < 90)
                 {
                     if (m.Value.Item3 == 0) continue;
-                    if (ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => l.Contains(m.Key))))
+                    if (ui.overview.AllEntrys.Any(oe => oe.labels.Any(l => l.Contains(m.Key))))
                     {
                         target_name_ = m.Key;
                         break;
                     }
                 }
             }
-            if (ui.overview.overviewentrys_.Any(oe => oe.labels_.Any(l => l.Contains(target_name_))))
+            if (ui.overview.AllEntrys.Any(oe => oe.labels.Any(l => l.Contains(target_name_))))
             {
-                var target = ui.overview.overviewentrys_.First(oe => oe.labels_.Any(l => l.Contains(target_name_)));
-                if (ui.overview.not_targeted_.Any(nt => nt.labels_.Any(l => l.Contains(target_name_))))
+                var target = ui.overview.AllEntrys.First(oe => oe.labels.Any(l => l.Contains(target_name_)));
+                if (ui.overview.UnTargeted.Any(nt => nt.labels.Any(l => l.Contains(target_name_))))
                 {
-                    input.MouseClickLeft(target.node_, ui.root);
+                    input.MouseClickLeft(target.node, ui.root);
                     input.KeyClick("^");
                 }
                 else
                 {
-                    if (target.indicators_.Any(i => i.Contains("Active")))
+                    if (target.indicators.Any(i => i.Contains("Active")))
                     {
                         ActivateTurrents(true);
                     }
                     else
                     {
-                        input.MouseClickLeft(target.node_, ui.root);
+                        input.MouseClickLeft(target.node, ui.root);
                     }
                 }
             }
             
-            if (ui.overview.targeted_.Count > 5)
+            if (ui.overview.Targeted.Count > 5)
             {
-                input.MouseClickLeft(ui.overview.targeted_.First(t => t.labels_.All(l => !l.Contains(target_name_))).node_, ui.root);
-                input.MouseClickLeft(ui.activeItem.actions_.First(a => a.hint.Contains("nlock")).node, ui.root);
+                input.MouseClickLeft(ui.overview.Targeted.First(t => t.labels.All(l => !l.Contains(target_name_))).node, ui.root);
+                input.MouseClickLeft(ui.activeItem.Actions.First(a => a.hint.Contains("nlock")).node, ui.root);
             }
         }
 
@@ -79,10 +79,10 @@ namespace SBotLogicImpl
         int ActivatePropMod(bool activate)
         {
 
-            var prop = ui.shipUI.active_slots_.Where(s => s.text.Equals("F1"));
+            var prop = ui.shipUI.activeSlots.Where(s => s.Text.Equals("F1"));
             if (prop.Any())
             {
-                if (prop.First().active ^ activate)
+                if (prop.First().Active ^ activate)
                 {
                     input.KeyClick("F1");
                     return 0;
@@ -96,10 +96,10 @@ namespace SBotLogicImpl
             for (int i = 2; i <= 8; i++)
             {
                 var text = "F" + i.ToString();
-                var turrents = ui.shipUI.active_slots_.Where(s => s.text.Equals(text));
+                var turrents = ui.shipUI.activeSlots.Where(s => s.Text.Equals(text));
                 if (turrents.Any())
                 {
-                    if (turrents.First().active ^ activate)
+                    if (turrents.First().Active ^ activate)
                     {
                         input.KeyClick(text);
                         res++;
@@ -114,12 +114,12 @@ namespace SBotLogicImpl
             for (int i = 5; i <= 8; i++)
             {
                 var text = "F" + i.ToString();
-                var module = ui.shipUI.active_slots_.Where(s => s.text.Equals(text));
+                var module = ui.shipUI.activeSlots.Where(s => s.Text.Equals(text));
                 if (module.Any())
                 {
                     //if (ui.overview_.targets.Any())
                     {
-                        if (module.First().active ^ activate)
+                        if (module.First().Active ^ activate)
                         {
                             input.KeyClick(text);
                             res++;

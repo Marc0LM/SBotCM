@@ -4,11 +4,11 @@
 
 #include "IMemoryReader.h"
 
-class MemoryReaderFromProcess : public IMemoryReader {
+class MemoryReaderRPM : public IMemoryReader {
  public:
   HANDLE handle_;
 
-  MemoryReaderFromProcess(uint32_t pid) { handle_ = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid); }
+  MemoryReaderRPM(uint32_t pid) { handle_ = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid); }
   std::shared_ptr<IByteArray> ReadBytes(Address start_address, Size length) {
     if (length == 0) return nullptr;
     std::shared_ptr<IByteArray> buf = std::make_shared<BufferedByteArray>(length);
@@ -17,5 +17,5 @@ class MemoryReaderFromProcess : public IMemoryReader {
     }
     return buf;
   }
-  ~MemoryReaderFromProcess() { CloseHandle(handle_); }
+  ~MemoryReaderRPM() { CloseHandle(handle_); }
 };
